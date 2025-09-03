@@ -244,8 +244,8 @@ def build_nodes():
     nodes = []
 
     # Ground
-    dn = great_circle_xyz(16.0544, 108.2022, 0.0)
-    hn = great_circle_xyz(21.0278, 105.8342, 0.0)
+    dn = great_circle_xyz(10.3815, 106.5422, 0.0)
+    hn = great_circle_xyz(55.7558, 37.6173, 0.0)
     nodes.append(StaticNode("Danang-GS", "ground", dn, range_km=1200))
     nodes.append(StaticNode("Hanoi-GS",  "ground", hn, range_km=1200))
 
