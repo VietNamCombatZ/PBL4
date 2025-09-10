@@ -8,7 +8,7 @@ RUN apt-get update && \
 RUN /bin/echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf || true
 
 WORKDIR /app
-COPY ../forwarder/forwarder.py /app/forwarder.py
+COPY forwarder/forwarder.py /app/forwarder.py
 
 # Mặc định: chạy forwarder; có thể override CMD để chạy shell
 CMD ["python3", "/app/forwarder.py"]
