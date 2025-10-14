@@ -1,0 +1,110 @@
+version: "3.9"
+
+# ---- Extensions (anchors) ----
+x-node-base: &node-base
+  build: .
+  command: ["python", "-m", "app.nodes.node"]
+  environment:
+    ROLE: node          # mặc định cho node
+    NODE_ID: 1          # sẽ override ở từng node
+
+x-node-env: &node-env
+  ROLE: node
+
+services:
+  controller:
+    build: .
+    container_name: controller
+    environment:
+      ROLE: controller
+    command: ["python", "-m", "app.controller.main"]
+    ports:
+      - "5500:5000"
+
+  node1:
+    <<: *node-base
+    # env của node1 giữ NODE_ID=1 từ node-base
+
+  node2:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 2
+
+  node3:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 3
+
+  node4:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 4
+
+  node5:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 5
+
+  node6:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 6
+
+  node7:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 7
+
+  node8:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 8
+
+  node9:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 9
+
+  node10:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 10
+
+  node11:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 11
+
+  node12:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 12
+
+  node13:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 13
+
+  node14:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 14
+
+  node15:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      NODE_ID: 15
