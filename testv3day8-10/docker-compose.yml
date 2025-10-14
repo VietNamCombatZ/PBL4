@@ -1,0 +1,42 @@
+# docker compose up --build --scale node=20
+
+# version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  controller:
+    build: ./controller
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - UPDATE_INTERVAL_SEC=10           # T (giây) cập nhật + chạy ACO
+      - LOS_EARTH_RADIUS_KM=6371.0
+      # - MAX_LINK_KM=3000                 # ngưỡng khoảng cách có thể nối trực tiếp (tùy chỉnh)
+      # tăng MAX_LINK_KM để có nhiều liên kết hơn, nhưng sẽ tốn nhiều tài nguyên tính toán hơn
+      - MAX_LINK_KM=6000
+      - UPDATE_INTERVAL_SEC=10
+    depends_on:
+      - redis
+    ports:
+      # - "7000:7000"    # Control API (HTTP) - optional
+      # - "7100:7100"    # TCP control channel node<->controller
+      # - "7200:7200"    # Data ingress (server inject payload)
+       - "17200:7200"    # đổi host port để tránh đụng 7200 nếu cũng đang bị chiếm
+
+  node:
+    build: ./node
+    environment:
+      - CONTROLLER_HOST=controller
+      - CONTROLLER_PORT=7100
+      - NODE_PORT=7300                   # data port cho node<->node
+      - LOS_EARTH_RADIUS_KM=6371.0
+    depends_on:
+      - controller
+    scale: 1
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M

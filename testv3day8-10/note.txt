@@ -1,0 +1,4 @@
+-B1: docker compose down -v     # xóa hết container & volume
+-B2: docker compose up -d --scale node=20
+-B3: lệnh kiểm tra (mở riêng ở terminal khác): 
+python3 tools/inject_payload.py --src 1 --dst 5 --msg "Hello ACO"
