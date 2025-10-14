@@ -1,4 +1,37 @@
 -B1: docker compose down -v     # xóa hết container & volume
--B2: docker compose up -d --scale node=20
--B3: lệnh kiểm tra (mở riêng ở terminal khác): 
-python3 tools/inject_payload.py --src 1 --dst 5 --msg "Hello ACO"
+-B2: docker compose up -d --scale node=50
+-B3: chờ 5-10p để hệ thống xử lý bảng định tuyến
+-B4: chạy lệnh sau để in ra bảng định tuyến của 1 node (có thể thay số 1 bằng các số thứ tự của các node khác)
+python3 tools/dump_routes.py --node 1 --port 17200
+
+* nếu node không có bảng định tuyến:
+{ 
+"ok": true, 
+"node": 1, 
+"routable_dsts": [], 
+"nexthop": {}, 
+"fallback": 3, 
+"directory_size": 50 
+}
+
+*nếu node có bảng định tuyến
+
+{ "ok": true, "node": 1, "routable_dsts": [ 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50 ], "nexthop": { "2": 20, "3": 20, "4": 20, "5": 20, "6": 20, "7": 20, "8": 20, "9": 20, "10": 20, "11": 20, "12": 20, "13": 20, "14": 20, "15": 20, "16": 20, "17": 20, "18": 20, "19": 20, "20": 20, "21": 20, "22": 20, "23": 20, "24": 20, "25": 20, "26": 20, "27": 20, "28": 20, "29": 20, "30": 20, "31": 20, "32": 20, "33": 20, "34": 20, "35": 20, "36": 20, "37": 20, "38": 20, "39": 20, "40": 20, "41": 20, "42": 20, "43": 20, "44": 20, "45": 20, "46": 20, "47": 20, "48": 20, "49": 20, "50": 20 }, "fallback": 41, "directory_size": 50 }
+
+-B5: chạy lệnh sau để gửi tin nhắn từ node đầu đến node đích (thay 2 số 1 và 20 thành stt của các node khác):
+python3 tools/inject_payload.py --src 1 --dst 20 --msg "Hello ACO"
+
+
+* nếu chạy thành công, sẽ có 2 dòng log sau
+- log phía terminal docker:
+[node 7] DELIVERED: Hello ACO
+
+- log ngay dưới câu lệnh vừa chạy:
+{"ok": true}
+
+* nếu không chạy được (do không có đường đi), ngay dưới lệnh gửi tin nhắn vừa chạy sẽ có log:
+{"ok": false, "reason": "no_route"}
+
+
+
+
