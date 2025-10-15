@@ -1,5 +1,5 @@
 -B1: docker compose down -v     # xóa hết container & volume
--B2: docker compose up -d --scale node=50
+-B2: docker compose up --scale node=50
 -B3: chờ 5-10p để hệ thống xử lý bảng định tuyến
 -B4: chạy lệnh sau để in ra bảng định tuyến của 1 node (có thể thay số 1 bằng các số thứ tự của các node khác)
 python3 tools/dump_routes.py --node 1 --port 17200
