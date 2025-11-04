@@ -63,7 +63,13 @@ def main() -> None:
         return boxes.get(name, cfg.bbox)
 
     if getattr(cfg, "continent", None):
-        nodes = filter_bbox(nodes, continent_bbox(cfg.continent))
+        # Apply continent filtering only to surface/air nodes. Satellites orbit globally
+        # and shouldn't be removed by landmass lat/lon bounds.
+        bbox_sel = continent_bbox(cfg.continent)
+        non_sat = [n for n in nodes if n.kind != "sat"]
+        sats = [n for n in nodes if n.kind == "sat"]
+        non_sat = filter_bbox(non_sat, bbox_sel)
+        nodes = non_sat + sats
 
     # enforce node_limit with type_mix if provided
     limit = int(getattr(cfg, "node_limit", 0) or 0)

@@ -2,7 +2,7 @@ epoch_sec: 1000
 enable_sea: false
 enable_ground: true
 enable_sat: true
-enable_air: true
+enable_air: false
 enable_clustering: true
 cluster_radius_km: 2000
 bbox:
@@ -43,7 +43,7 @@ selection:
   continent: asia          # asia|europe|africa|north_america|south_america|america|oceania
   node_limit: 200          # keep at most this many nodes
   type_mix:                # desired share per kind (used with node_limit)
-    sat: 0.4
-    air: 0.2
-    ground: 0.4
+    sat: 0.5
+    air: 0.0
+    ground: 0.5
     sea: 0.0
