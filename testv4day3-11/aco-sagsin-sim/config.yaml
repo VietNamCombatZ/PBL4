@@ -1,0 +1,39 @@
+epoch_sec: 10
+enable_sea: false
+enable_ground: true
+enable_sat: true
+enable_air: true
+enable_clustering: true
+cluster_radius_km: 20
+bbox:
+  min_lat: -90
+  max_lat: 90
+  min_lon: -180
+  max_lon: 180
+max_range_km:
+  air_air: 400
+  ground_ground: 80
+  ground_air: 300
+  ground_sat: 2000
+  air_sat: 2500
+  sat_sat: 5000
+elevation_min_deg: 10
+aco:
+  ants: 30
+  iters: 60
+  alpha: 1.0
+  beta: 3.0
+  rho: 0.2
+  xi: 0.1
+  q0: 0.2
+  tau0: 0.2
+  mmas: true
+  tau_min: 0.01
+  tau_max: 2.0
+  weights: [0.5, 0.2, 0.2, 0.1]
+link_model:
+  freq_hz: 2.4e9
+  bw_hz: 20e6
+  p_tx_dbm: 20
+  noise_dbm: -100
+  proc_queue_ms: 2

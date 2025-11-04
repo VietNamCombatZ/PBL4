@@ -65,14 +65,13 @@ async def handle_node(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         port = 7300
     kind = str(info.get("kind", "sat"))
 
-    host_name = str(info.get("host_name") or "")
     nodes[nid] = NodeInfo(
         node_id=nid,
         kind=kind,
         lat=float(info.get("lat", 0.0)),
         lon=float(info.get("lon", 0.0)),
         alt_km=float(info.get("alt_km", 0.0)),
-        host=host_name or peer_ip,           # IP thật của TCP peer
+        host=peer_ip,           # IP thật của TCP peer
         port=port
     )
     writer_by_node[nid] = writer
@@ -100,7 +99,7 @@ async def handle_node(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         # cleanup khi node ngắt
         writer_by_node.pop(nid, None)
         # (tuỳ nhu cầu: có thể giữ nodes[nid] để route tạm thời, hoặc xoá hẳn)
-        nodes.pop(nid, None)
+        # nodes.pop(nid, None)
         log.info("node %d disconnected", nid)
 
 
@@ -153,7 +152,6 @@ async def data_ingress_server(reader: asyncio.StreamReader, writer: asyncio.Stre
         await writer.drain(); writer.close(); return
 
     ok = await inject_to_node(src, {"forward": {"dst": dst, "payload": payload}})
-    
     writer.write((json.dumps({"ok": ok})+"\n").encode())
     await writer.drain()
     writer.close()
@@ -219,16 +217,13 @@ async def periodic_update():
             nexthop = aco_next_hop(nodes, MAX_LINK_KM, iters=8, ants=30)
 
             # 3) Phát tán nexthop + directory tới mọi node
-            # dist_tbl chỉ chứa đích còn online
             dist_tbl = {}
             for (s, d), nh in nexthop.items():
-                if nh in live_ids and d in live_ids and s in live_ids:
-                    dist_tbl.setdefault(s, {})[str(d)] = nh
+                dist_tbl.setdefault(s, {})[str(d)] = nh
 
-            live_ids = set(writer_by_node.keys())
-            directory = {nid: {"host": nodes[nid].host, "port": nodes[nid].port, "kind": nodes[nid].kind}
-                          for nid in live_ids}
-
+            directory = {nid: {"host": n.host, "port": n.port, "kind": n.kind}
+                          for nid, n in nodes.items()}
+            
             fallback_next = {}
             sats = [nid for nid,n in nodes.items() if n.kind == "sat"]
             for s in nodes.keys():
