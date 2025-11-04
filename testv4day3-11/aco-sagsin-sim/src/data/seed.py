@@ -20,7 +20,9 @@ GEN_DIR = Path("data/generated")
 def _assign_ids(nodes: List[Node]) -> List[Node]:
     out: List[Node] = []
     for i, n in enumerate(nodes):
-        out.append(Node(id=i, kind=n.kind, lat=n.lat, lon=n.lon, alt_m=n.alt_m))
+        # Preserve any existing name from the source; otherwise assign a friendly default
+        name = getattr(n, "name", "") or f"{n.kind}-{i}"
+        out.append(Node(id=i, kind=n.kind, lat=n.lat, lon=n.lon, alt_m=n.alt_m, name=name))
     return out
 
 
@@ -48,9 +50,9 @@ def main() -> None:
     if not nodes:
         # fallback tiny toy set
         nodes = [
-            Node(id=-1, kind="ground", lat=0.0, lon=0.0, alt_m=0.0),
-            Node(id=-1, kind="ground", lat=0.1, lon=0.1, alt_m=0.0),
-            Node(id=-1, kind="sat", lat=0.2, lon=0.2, alt_m=550000.0),
+            Node(id=-1, kind="ground", lat=0.0, lon=0.0, alt_m=0.0, name="ground-0"),
+            Node(id=-1, kind="ground", lat=0.1, lon=0.1, alt_m=0.0, name="ground-1"),
+            Node(id=-1, kind="sat", lat=0.2, lon=0.2, alt_m=550000.0, name="sat-2"),
         ]
 
     nodes = _assign_ids(nodes)

@@ -44,7 +44,10 @@ def fetch() -> List[Node]:
                         lon = float(parts[7])
                     except Exception:
                         continue
-                    nodes.append(Node(id=-1, kind="sea", lat=lat, lon=_norm_lon(lon), alt_m=0.0))
+                    station_id = parts[0] if len(parts) > 0 else ""
+                    station_name = parts[1] if len(parts) > 1 else ""
+                    nm = station_name or station_id
+                    nodes.append(Node(id=-1, kind="sea", lat=lat, lon=_norm_lon(lon), alt_m=0.0, name=nm))
                 break
         except Exception:
             if attempt + 1 == cfg.http_retries:

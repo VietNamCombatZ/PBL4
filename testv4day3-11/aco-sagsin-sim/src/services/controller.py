@@ -45,9 +45,9 @@ def on_start() -> None:
     if not NODES_PATH.exists():
         # fallback toy nodes
         toy = [
-            Node(id=0, kind="ground", lat=0.0, lon=0.0, alt_m=0.0).__dict__,
-            Node(id=1, kind="ground", lat=0.1, lon=0.1, alt_m=0.0).__dict__,
-            Node(id=2, kind="sat", lat=0.2, lon=0.2, alt_m=550000.0).__dict__,
+            Node(id=0, kind="ground", lat=0.0, lon=0.0, alt_m=0.0, name="ground-0").__dict__,
+            Node(id=1, kind="ground", lat=0.1, lon=0.1, alt_m=0.0, name="ground-1").__dict__,
+            Node(id=2, kind="sat", lat=0.2, lon=0.2, alt_m=550000.0, name="sat-2").__dict__,
         ]
         NODES_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(NODES_PATH, "w", encoding="utf-8") as f:
@@ -73,7 +73,13 @@ def get_nodes():
     with STATE_LOCK:
         if not STATE:
             return []
-        return [n.__dict__ for n in STATE.nodes]
+        out = []
+        for n in STATE.nodes:
+            d = dict(n.__dict__)
+            if not d.get("name"):
+                d["name"] = f"{n.kind}-{n.id}"
+            out.append(d)
+        return out
 
 
 @app.get("/links")

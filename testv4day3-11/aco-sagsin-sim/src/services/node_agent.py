@@ -22,7 +22,8 @@ def main() -> None:
         nodes = json.load(f)
     if idx < len(nodes):
         node = nodes[idx]
-        print(f"Node agent started for node id={node['id']} kind={node['kind']}")
+    nm = node.get('name') or f"{node.get('kind','node')}-{node.get('id','?')}"
+    print(f"Node agent started for node id={node['id']} kind={node['kind']} name={nm}")
     else:
         print("Node agent in standby (no assigned node)")
     # simple heartbeat

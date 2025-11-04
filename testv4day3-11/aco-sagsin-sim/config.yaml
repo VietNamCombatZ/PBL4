@@ -2,7 +2,7 @@ epoch_sec: 10
 enable_sea: false
 enable_ground: true
 enable_sat: true
-enable_air: true
+enable_air: false
 enable_clustering: true
 cluster_radius_km: 20
 bbox:

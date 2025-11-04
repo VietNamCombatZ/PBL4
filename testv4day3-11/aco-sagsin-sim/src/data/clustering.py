@@ -33,7 +33,11 @@ def dbscan_cluster(nodes: Iterable[Node], radius_km: float) -> list[Node]:
         alt = float(np.mean(group[:, 2]))
         # normalize lon to [-180,180]
         lon = ((lon + 180) % 360) - 180
-        out.append(Node(id=-1, kind=nodes[idxs[0]].kind, lat=lat, lon=lon, alt_m=alt))
+        kind = nodes[idxs[0]].kind
+        # try to synthesize a name from first member
+        base_name = getattr(nodes[idxs[0]], "name", "")
+        name = base_name or f"{kind}-cluster-{int(lbl)}"
+        out.append(Node(id=-1, kind=kind, lat=lat, lon=lon, alt_m=alt, name=name))
     return out
 
 
@@ -48,5 +52,7 @@ def grid_cluster(nodes: Iterable[Node], grid_deg: float = 0.1) -> list[Node]:
         lon = float(np.mean([g.lon for g in group]))
         alt = float(np.mean([g.alt_m for g in group]))
         lon = ((lon + 180) % 360) - 180
-        out.append(Node(id=-1, kind=kind, lat=lat, lon=lon, alt_m=alt))
+        base_name = getattr(group[0], "name", "") if group else ""
+        name = base_name or f"{kind}-grid"
+        out.append(Node(id=-1, kind=kind, lat=lat, lon=lon, alt_m=alt, name=name))
     return out

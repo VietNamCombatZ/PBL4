@@ -40,8 +40,9 @@ def fetch() -> List[Node]:
                     if lat is None or lon is None:
                         continue
                     alt_m = float(alt) if alt is not None else 10000.0
+                    callsign = (st[1] or "").strip() if isinstance(st, list) and len(st) > 1 else ""
                     nodes.append(
-                        Node(id=-1, kind="air", lat=float(lat), lon=_norm_lon(float(lon)), alt_m=alt_m)
+                        Node(id=-1, kind="air", lat=float(lat), lon=_norm_lon(float(lon)), alt_m=alt_m, name=callsign)
                     )
                 break
         except Exception:

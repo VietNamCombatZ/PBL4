@@ -40,7 +40,8 @@ def fetch() -> List[Node]:
                     alt = st.get("elevation", 0) or 0
                     if lat is None or lon is None:
                         continue
-                    nodes.append(Node(id=-1, kind="ground", lat=float(lat), lon=_norm_lon(float(lon)), alt_m=float(alt)))
+                    nm = st.get("name") or st.get("station_id") or ""
+                    nodes.append(Node(id=-1, kind="ground", lat=float(lat), lon=_norm_lon(float(lon)), alt_m=float(alt), name=str(nm) if nm else ""))
                 break
         except Exception:
             if attempt + 1 == cfg.http_retries:

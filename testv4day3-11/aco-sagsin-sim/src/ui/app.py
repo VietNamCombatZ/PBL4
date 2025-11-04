@@ -6,7 +6,9 @@ import streamlit as st
 
 st.set_page_config(page_title="ACO SAGSIN")
 
-controller = st.text_input("Controller URL", value="http://localhost:8080")
+# Default to docker service name so UI works when running via docker-compose.
+# You can still change it from the text box when running locally without Compose.
+controller = st.text_input("Controller URL", value="http://controller:8080")
 
 col1, col2 = st.columns(2)
 with col1:

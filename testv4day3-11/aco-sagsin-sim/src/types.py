@@ -13,6 +13,8 @@ class Node:
     lat: float
     lon: float
     alt_m: float
+    # Optional human-readable name; defaults to empty to maintain back-compat with cached data
+    name: str = ""
 
 
 @dataclass

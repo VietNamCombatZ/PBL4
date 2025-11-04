@@ -44,7 +44,8 @@ def fetch() -> List[Node]:
                         norad = 0
                     lon = _norm_lon((norad % 360) - 180)
                     lat = 0.0
-                    nodes.append(Node(id=-1, kind="sat", lat=lat, lon=lon, alt_m=alt_m))
+                    name = sat.get("OBJECT_NAME") or (f"SAT-{norad}" if norad else "")
+                    nodes.append(Node(id=-1, kind="sat", lat=lat, lon=lon, alt_m=alt_m, name=name))
                 break
         except Exception:
             if attempt + 1 == cfg.http_retries:

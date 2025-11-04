@@ -32,6 +32,18 @@ services:
     deploy:
       replicas: ${NODES:-50}
 
+  ui:
+    image: aco-sagsin-sim:latest
+    depends_on:
+      - controller
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["streamlit", "run", "src/ui/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+
 networks:
   default:
     name: aco-sagsin
