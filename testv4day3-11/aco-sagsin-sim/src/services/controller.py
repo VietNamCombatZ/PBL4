@@ -9,6 +9,7 @@ import math
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from ..aco.solver import ACO
@@ -19,6 +20,15 @@ from ..net.updater import rebuild_from_nodes, update_epoch
 from ..types import GraphState, Link, Node
 
 app = FastAPI(title="ACO SAGSIN Controller")
+
+# CORS for local dev frontend (Vite @ :5173) and same-origin callers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # tighten to ["http://localhost:5173", "http://127.0.0.1:5173"] if needed
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 STATE_LOCK = threading.Lock()
 STATE: Optional[GraphState] = None
@@ -36,6 +46,20 @@ class ToggleReq(BaseModel):
     u: int
     v: int
     enabled: bool
+
+
+@app.get("/")
+def root():
+    return {
+        "service": "aco-sagsin-controller",
+        "docs": "/docs",
+        "endpoints": ["/nodes", "/links", "/route", "/simulate/toggle-link", "/simulate/set-epoch", "/config/reload", "/health"],
+    }
+
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
 
 
 @app.on_event("startup")
