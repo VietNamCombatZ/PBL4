@@ -37,3 +37,13 @@ link_model:
   p_tx_dbm: 20
   noise_dbm: -100
   proc_queue_ms: 2
+
+# Optional selection controls
+selection:
+  continent: asia          # asia|europe|africa|north_america|south_america|america|oceania
+  node_limit: 200          # keep at most this many nodes
+  type_mix:                # desired share per kind (used with node_limit)
+    sat: 0.4
+    air: 0.2
+    ground: 0.4
+    sea: 0.0

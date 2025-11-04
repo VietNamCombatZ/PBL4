@@ -5,6 +5,7 @@ import os
 import threading
 import time
 from pathlib import Path
+import math
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -102,7 +103,16 @@ def post_route(req: RouteReq):
                 weights = (float(w[0]), float(w[1]), float(w[2]), float(w[3]))
         aco = ACO(STATE, weights_override=weights)
         path, cost = aco.solve(req.src, req.dst)
-        return {"path": path, "cost": cost}
+        try:
+            import logging
+
+            logging.getLogger(__name__).info("route result: path=%s cost=%s", path, cost)
+        except Exception:
+            pass
+        # Guard against NaN/Infinity to keep JSON RFC-compliant and signal infeasible routes
+        if not path or not math.isfinite(cost):
+            raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
+        return {"path": path, "cost": float(cost)}
 
 
 @app.post("/simulate/toggle-link")

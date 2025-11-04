@@ -62,7 +62,7 @@ Start (foreground, uses Makefile):
 make up
 
 # scale to a specific number of node agents
-NODES=10 make up
+NODES=60 make up
 ```
 
 Start (detached, direct Docker Compose alternative):
@@ -99,6 +99,15 @@ Key flags:
 - bbox filter
 - epoch_sec controls dynamic updates
 - offline uses cache when network unavailable
+
+Selection (optional):
+- `selection.continent`: one of asia, europe, africa, north_america, south_america, america, oceania.
+- `selection.node_limit`: max nodes to keep (0 = unlimited).
+- `selection.type_mix`: percentage mix per kind, e.g. `{sat: 0.3, air: 0.5, ground: 0.2, sea: 0.0}`.
+
+Notes:
+- Selection is applied after bbox and clustering.
+- When `type_mix` is provided with `node_limit`, quotas are computed from the mix and filled greedily; any remainder is backfilled from remaining nodes.
 
 ## Development
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import yaml
 from dotenv import load_dotenv
@@ -60,6 +60,10 @@ class Config:
     http_timeout_sec: int
     http_retries: int
     backoff_factor: float
+    # optional selection controls
+    continent: Optional[str] = None  # e.g., asia, europe, africa, america, north_america, south_america, oceania
+    node_limit: int = 0  # 0 = unlimited
+    type_mix: Dict[str, float] | None = None  # e.g., {"sat":0.3, "air":0.5, "ground":0.2, "sea":0.0}
 
 
 def load_config(path: str = "config.yaml") -> Config:
@@ -69,6 +73,8 @@ def load_config(path: str = "config.yaml") -> Config:
 
     aco = y.get("aco", {})
     lm = y.get("link_model", {})
+
+    sel = y.get("selection", {})
 
     config = Config(
         epoch_sec=int(os.getenv("EPOCH_SEC", y.get("epoch_sec", 10))),
@@ -114,6 +120,9 @@ def load_config(path: str = "config.yaml") -> Config:
         http_timeout_sec=int(os.getenv("HTTP_TIMEOUT_SEC", 10)),
         http_retries=int(os.getenv("HTTP_RETRIES", 3)),
         backoff_factor=float(os.getenv("BACKOFF_FACTOR", 0.6)),
+    continent=(os.getenv("CONTINENT") or sel.get("continent")),
+    node_limit=int(os.getenv("NODE_LIMIT", sel.get("node_limit", 0) or 0)),
+    type_mix=sel.get("type_mix"),
     )
 
     return config

@@ -24,8 +24,8 @@ def main() -> None:
         node = nodes[idx]
     nm = node.get('name') or f"{node.get('kind','node')}-{node.get('id','?')}"
     print(f"Node agent started for node id={node['id']} kind={node['kind']} name={nm}")
-    else:
-        print("Node agent in standby (no assigned node)")
+    # else:
+    #     print("Node agent in standby (no assigned node)")
     # simple heartbeat
     while True:
         print(f"agent idx={idx} alive")

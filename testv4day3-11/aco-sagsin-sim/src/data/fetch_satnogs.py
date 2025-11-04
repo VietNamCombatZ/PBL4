@@ -36,8 +36,11 @@ def fetch() -> List[Node]:
                 data = resp.json()
                 for st in data:
                     lat = st.get("lat")
-                    lon = st.get("lon")
-                    alt = st.get("elevation", 0) or 0
+                    # API uses 'lng' (not 'lon'); keep fallback to 'lon' just in case
+                    lon = st.get("lng") if "lng" in st else st.get("lon")
+                    # Some payloads use 'altitude' instead of 'elevation'
+                    alt = st.get("elevation") if st.get("elevation") is not None else st.get("altitude", 0)
+                    alt = alt or 0
                     if lat is None or lon is None:
                         continue
                     nm = st.get("name") or st.get("station_id") or ""
