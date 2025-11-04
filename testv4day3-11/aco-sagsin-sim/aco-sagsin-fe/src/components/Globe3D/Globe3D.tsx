@@ -34,7 +34,8 @@ export default function Globe3D({ nodes, arcs, hoverNodeId, onHoverNode, statusB
       pointsData={pts}
       pointLat={(d: any) => d.lat}
       pointLng={(d: any) => d.lon}
-      pointAltitude={(d: any) => altitudeOffset(d.lat, d.lon, d.alt_m, d.kind)}
+  // Render all nodes as surface dots (no vertical pillars), regardless of their real altitude
+  pointAltitude={(d: any) => 0}
       pointColor={(d: any) => nodeColor(d.kind, statusByNode?.[d.id])}
       pointRadius={0.5}
       onPointHover={(d: any) => onHoverNode?.(d?.id)}
