@@ -7,9 +7,12 @@ import time
 from pathlib import Path
 import math
 from typing import Optional
+import uuid
+import queue
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..aco.solver import ACO
@@ -35,6 +38,31 @@ STATE: Optional[GraphState] = None
 CFG: Optional[Config] = None
 NODES_PATH = Path("data/generated/nodes.json")
 
+# In-memory SSE broadcaster for packet progress events
+SUBSCRIBERS: list[queue.Queue[str]] = []
+SUB_LOCK = threading.Lock()
+
+def _subscribe() -> queue.Queue[str]:
+    q: queue.Queue[str] = queue.Queue()
+    with SUB_LOCK:
+        SUBSCRIBERS.append(q)
+    return q
+
+def _unsubscribe(q: queue.Queue[str]) -> None:
+    with SUB_LOCK:
+        if q in SUBSCRIBERS:
+            SUBSCRIBERS.remove(q)
+
+def _broadcast(evt: dict) -> None:
+    data = f"data: {json.dumps(evt)}\n\n"
+    with SUB_LOCK:
+        subs = list(SUBSCRIBERS)
+    for q in subs:
+        try:
+            q.put_nowait(data)
+        except Exception:
+            pass
+
 
 class RouteReq(BaseModel):
     src: int
@@ -48,12 +76,28 @@ class ToggleReq(BaseModel):
     enabled: bool
 
 
+class SendPacketReq(BaseModel):
+    src: int
+    dst: int
+    protocol: str = "UDP"
+
+
 @app.get("/")
 def root():
     return {
         "service": "aco-sagsin-controller",
         "docs": "/docs",
-        "endpoints": ["/nodes", "/links", "/route", "/simulate/toggle-link", "/simulate/set-epoch", "/config/reload", "/health"],
+        "endpoints": [
+            "/nodes",
+            "/links",
+            "/route",
+            "/simulate/toggle-link",
+            "/simulate/set-epoch",
+            "/simulate/send-packet",
+            "/events",
+            "/config/reload",
+            "/health",
+        ],
     }
 
 
@@ -168,3 +212,58 @@ def post_reload():
     with STATE_LOCK:
         STATE = rebuild_from_nodes(str(NODES_PATH))
     return {"ok": True}
+
+
+@app.post("/simulate/send-packet")
+def post_send_packet(req: SendPacketReq):
+    with STATE_LOCK:
+        if not STATE:
+            raise HTTPException(500, "Graph not ready")
+        aco = ACO(STATE)
+        path, cost = aco.solve(req.src, req.dst)
+    if not path or not math.isfinite(cost):
+        raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
+
+    session_id = str(uuid.uuid4())
+
+    def _simulate():
+        for node_id in path:
+            try:
+                _broadcast({
+                    "type": "packet-progress",
+                    "sessionId": session_id,
+                    "nodeId": node_id,
+                    "status": "pending",
+                })
+                time.sleep(0.3)
+                _broadcast({
+                    "type": "packet-progress",
+                    "sessionId": session_id,
+                    "nodeId": node_id,
+                    "status": "success",
+                })
+            except Exception:
+                pass
+            time.sleep(0.2)
+
+    threading.Thread(target=_simulate, daemon=True).start()
+    return {"sessionId": session_id, "path": path, "cost": float(cost)}
+
+
+@app.get("/events")
+def get_events():
+    q = _subscribe()
+
+    def _gen():
+        try:
+            yield ":ok\n\n"
+            while True:
+                try:
+                    msg = q.get(timeout=15)
+                    yield msg
+                except Exception:
+                    yield ":keepalive\n\n"
+        finally:
+            _unsubscribe(q)
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")

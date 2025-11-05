@@ -127,6 +127,8 @@ pytest -q
   - POST /route {src,dst,objective?}
   - POST /simulate/toggle-link
   - POST /simulate/set-epoch
+  - POST /simulate/send-packet {src,dst,protocol}
+  - GET /events (SSE stream for packet-progress)
   - POST /config/reload
 
 - node agent: one per container, binds NODE_INDEX to a node from nodes.json and heartbeats.
@@ -136,3 +138,20 @@ pytest -q
 - Data is cached under `data/cache` with TTL.
 - If offline, seed uses cache and falls back to a tiny synthetic toy graph if cache is empty, so /route still works.
 - The ACO objective normalizes latency, inverse-capacity, energy, inverse-reliability to [0,1] with weights.
+
+## Packet simulation
+
+- Start a packet and observe events:
+
+```bash
+curl -s -N http://localhost:8080/events &
+curl -s -X POST http://localhost:8080/simulate/send-packet \
+  -H 'content-type: application/json' \
+  -d '{"src":1,"dst":25,"protocol":"UDP"}' | jq .
+```
+
+- From inside the image (or via docker exec), you can use a small CLI:
+
+```bash
+docker compose run --rm controller python -m src.tools.send_packet_cli --src 1 --dst 25 --protocol UDP
+```
