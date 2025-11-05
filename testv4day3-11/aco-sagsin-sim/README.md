@@ -143,6 +143,14 @@ pytest -q
 
 - Start a packet and observe events:
 
+- Observe event:
+```bash
+curl -s -X POST http://localhost:8080/simulate/send-packet \
+  -H 'content-type: application/json' \
+  -d '{"src":0,"dst":1,"protocol":"UDP"}' | jq .
+```
+
+- Start send a packet
 ```bash
 curl -s -N http://localhost:8080/events &
 curl -s -X POST http://localhost:8080/simulate/send-packet \
