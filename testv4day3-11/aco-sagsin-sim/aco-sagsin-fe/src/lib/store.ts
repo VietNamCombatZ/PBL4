@@ -40,8 +40,21 @@ export const useStore = create<State>((set, get) => ({
     const route = get().currentRoute
     const path = route?.path ?? []
     const updates: Record<number, PacketStatus> = {}
-  path.forEach((id) => { updates[id] = 'pending' })
-  set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates, perHopLatency: {} } } }))
+    path.forEach((id) => { updates[id] = 'pending' })
+    // precompute per-hop cumulative latency from current links if available
+    const links = get().links || []
+    const per: Record<number, number> = {}
+    let cumulative = 0
+    if (path.length > 0) per[path[0]] = 0
+    for (let i = 1; i < path.length; i++) {
+      const u = path[i - 1]
+      const v = path[i]
+      const lk = links.find((l) => (l.u === u && l.v === v) || (l.u === v && l.v === u))
+      const latency = (lk as any)?.latency_ms ?? 0
+      cumulative += latency
+      per[path[i]] = cumulative
+    }
+    set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates, perHopLatency: per } } }))
     get().ensureEventStream()
     return sessionId
   },
