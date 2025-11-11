@@ -54,12 +54,15 @@ def _unsubscribe(q: queue.Queue[str]) -> None:
             SUBSCRIBERS.remove(q)
 
 def _broadcast(evt: dict) -> None:
-    data = f"data: {json.dumps(evt)}\n\n"
+    # include explicit SSE event name when available and JSON data
+    event_name = evt.get("type", "message")
+    payload = json.dumps(evt)
+    frame = f"event: {event_name}\n" + f"data: {payload}\n\n"
     with SUB_LOCK:
         subs = list(SUBSCRIBERS)
     for q in subs:
         try:
-            q.put_nowait(data)
+            q.put_nowait(frame)
         except Exception:
             pass
 
@@ -221,19 +224,46 @@ def post_send_packet(req: SendPacketReq):
             raise HTTPException(500, "Graph not ready")
         aco = ACO(STATE)
         path, cost = aco.solve(req.src, req.dst)
+        # capture links and edge_index snapshot for simulation thread to compute latencies
+        links_snapshot = list(STATE.links)
+        edge_index_snapshot = dict(STATE.edge_index)
     if not path or not math.isfinite(cost):
         raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
 
     session_id = str(uuid.uuid4())
 
     def _simulate():
-        for node_id in path:
+        # compute cumulative latency per node along the path (ms)
+        cumulative = 0.0
+        # helper to read latency between u->v
+        def _link_latency(u: int, v: int) -> float:
+            idx = edge_index_snapshot.get((u, v))
+            if idx is None:
+                # try reverse (graph may be undirected)
+                idx = edge_index_snapshot.get((v, u))
+            if idx is None:
+                return 0.0
+            try:
+                return float(links_snapshot[idx].latency_ms)
+            except Exception:
+                return 0.0
+
+        for i, node_id in enumerate(path):
+            # cumulative latency up to this node (sum of latencies of links before this node)
+            if i == 0:
+                cumulative = 0.0
+            else:
+                u = path[i - 1]
+                v = path[i]
+                cumulative += _link_latency(u, v)
+
             try:
                 _broadcast({
                     "type": "packet-progress",
                     "sessionId": session_id,
                     "nodeId": node_id,
                     "status": "pending",
+                    "cumulativeLatencyMs": cumulative,
                 })
                 time.sleep(0.3)
                 _broadcast({
@@ -241,6 +271,7 @@ def post_send_packet(req: SendPacketReq):
                     "sessionId": session_id,
                     "nodeId": node_id,
                     "status": "success",
+                    "cumulativeLatencyMs": cumulative,
                 })
             except Exception:
                 pass
