@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { NodeInfo, LinkInfo, RouteResult, PacketEvent, PacketStatus } from './types'
 import { getNodes, getLinks, postRoute, sendPacket, openEvents } from './api'
 
-type PacketSession = { path: number[]; updates: Record<number, PacketStatus>; cumulative_latency_ms?: number; latencyByNode?: Record<number, number> }
+type PacketSession = { path: number[]; updates: Record<number, PacketStatus>; cumulative_latency_ms?: number }
 
 type State = {
   nodes: NodeInfo[]
@@ -37,12 +37,11 @@ export const useStore = create<State>((set, get) => ({
   },
   async startPacket(src, dst, protocol) {
     const { sessionId } = await sendPacket(src, dst, protocol)
-  const route = get().currentRoute
-  const path = route?.path ?? []
-  const updates: Record<number, PacketStatus> = {}
-  const latencyByNode: Record<number, number> = {}
-  path.forEach((id) => { updates[id] = 'pending'; latencyByNode[id] = NaN })
-  set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates, latencyByNode } } }))
+    const route = get().currentRoute
+    const path = route?.path ?? []
+    const updates: Record<number, PacketStatus> = {}
+    path.forEach((id) => { updates[id] = 'pending' })
+    set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates } } }))
     get().ensureEventStream()
     return sessionId
   },
@@ -55,9 +54,7 @@ export const useStore = create<State>((set, get) => ({
       const cur = s.packetSessions[e.sessionId]
       if (!cur) return s
       const updates = { ...cur.updates, [e.nodeId]: e.status }
-      const latencyByNode = { ...(cur.latencyByNode || {}) }
-      if (typeof e.cumulative_latency_ms === 'number') latencyByNode[e.nodeId] = e.cumulative_latency_ms
-      return { packetSessions: { ...s.packetSessions, [e.sessionId]: { ...cur, updates, latencyByNode, cumulative_latency_ms: e.cumulative_latency_ms ?? cur.cumulative_latency_ms } } }
+      return { packetSessions: { ...s.packetSessions, [e.sessionId]: { ...cur, updates, cumulative_latency_ms: e.cumulative_latency_ms ?? cur.cumulative_latency_ms } } }
     })
   },
   setHoverNode(id) { set({ hoverNodeId: id }) },

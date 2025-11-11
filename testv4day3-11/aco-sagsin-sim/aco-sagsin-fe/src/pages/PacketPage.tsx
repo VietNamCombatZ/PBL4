@@ -71,28 +71,43 @@ export default function PacketPage() {
             <div className="font-semibold mb-2">Trạng thái</div>
             {/* vertical timeline: node text on left, status circle and connecting line on right */}
             <div className="text-sm">
-              <ul className="space-y-2">
-                {session.path.map((pid: number, idx: number) => {
-                  const n = nodes.find(nn => nn.id === pid)
-                  const st = displayedStatus[pid] || 'pending'
-                  const isLast = idx === session.path.length - 1
-                  const latMs = session?.latencyByNode?.[pid]
-                  return (
-                    <li key={pid} className="flex items-center justify-between">
-                      <div className="cursor-pointer hover:text-white" onClick={() => setHoverNode(pid)}>
-                        <div className="text-sm font-medium">{pid} - {n?.name ?? ''}</div>
-                        <div className="text-xs text-slate-400">{fmtMs(latMs ?? undefined)}</div>
-                      </div>
-                      <div className="flex flex-col items-center ml-4">
-                        {/* circle */}
-                        <div className={`w-4 h-4 rounded-full ${st === 'success' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
-                        {/* connecting vertical line (except last) */}
-                        {!isLast && <div className="w-px h-6 bg-slate-700 mt-1"></div>}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
+              {(() => {
+                // derive displayed statuses so that once a later node is success,
+                // all previous nodes up to it are considered success too
+                const displayed: Record<number, string> = {}
+                const path = session.path
+                // initialize with existing statuses (default pending)
+                path.forEach((pid: number) => { displayed[pid] = statusMap?.[pid] ?? 'pending' })
+                // propagate successes backwards
+                for (let i = 0; i < path.length; i++) {
+                  const pid = path[i]
+                  if (displayed[pid] === 'success') {
+                    for (let j = 0; j < i; j++) displayed[path[j]] = 'success'
+                  }
+                }
+                return (
+                  <ul className="space-y-2">
+                    {path.map((pid: number, idx: number) => {
+                      const n = nodes.find(nn => nn.id === pid)
+                      const st = displayed[pid] || 'pending'
+                      const isLast = idx === path.length - 1
+                      return (
+                        <li key={pid} className="flex items-center justify-between">
+                          <div className="cursor-pointer hover:text-white" onClick={() => setHoverNode(pid)}>
+                            <div className="text-sm font-medium">{pid} - {n?.name ?? ''}</div>
+                          </div>
+                          <div className="flex flex-col items-center ml-4">
+                            {/* circle */}
+                            <div className={`w-4 h-4 rounded-full ${st === 'success' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                            {/* connecting vertical line (except last) */}
+                            {!isLast && <div className="w-px h-6 bg-slate-700 mt-1"></div>}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              })()}
             </div>
           </div>
         )}
