@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { NodeInfo, LinkInfo, RouteResult, PacketEvent, PacketStatus } from './types'
 import { getNodes, getLinks, postRoute, sendPacket, openEvents } from './api'
 
-type PacketSession = { path: number[]; updates: Record<number, PacketStatus>; cumulative_latency_ms?: number }
+type PacketSession = { path: number[]; updates: Record<number, PacketStatus>; cumulative_latency_ms?: number; perHopLatency?: Record<number, number> }
 
 type State = {
   nodes: NodeInfo[]
@@ -40,8 +40,8 @@ export const useStore = create<State>((set, get) => ({
     const route = get().currentRoute
     const path = route?.path ?? []
     const updates: Record<number, PacketStatus> = {}
-    path.forEach((id) => { updates[id] = 'pending' })
-    set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates } } }))
+  path.forEach((id) => { updates[id] = 'pending' })
+  set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates, perHopLatency: {} } } }))
     get().ensureEventStream()
     return sessionId
   },
@@ -53,8 +53,10 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       const cur = s.packetSessions[e.sessionId]
       if (!cur) return s
-      const updates = { ...cur.updates, [e.nodeId]: e.status }
-      return { packetSessions: { ...s.packetSessions, [e.sessionId]: { ...cur, updates, cumulative_latency_ms: e.cumulative_latency_ms ?? cur.cumulative_latency_ms } } }
+  const updates = { ...cur.updates, [e.nodeId]: e.status }
+  const per = { ...(cur.perHopLatency || {}) }
+  if (e.cumulative_latency_ms != null) per[e.nodeId] = e.cumulative_latency_ms
+  return { packetSessions: { ...s.packetSessions, [e.sessionId]: { ...cur, updates, perHopLatency: per, cumulative_latency_ms: e.cumulative_latency_ms ?? cur.cumulative_latency_ms } } }
     })
   },
   setHoverNode(id) { set({ hoverNodeId: id }) },

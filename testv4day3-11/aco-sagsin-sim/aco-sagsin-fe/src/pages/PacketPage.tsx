@@ -91,10 +91,12 @@ export default function PacketPage() {
                       const n = nodes.find(nn => nn.id === pid)
                       const st = displayed[pid] || 'pending'
                       const isLast = idx === path.length - 1
+                      const perLatency = (session.perHopLatency && session.perHopLatency[pid]) ?? undefined
                       return (
                         <li key={pid} className="flex items-center justify-between">
                           <div className="cursor-pointer hover:text-white" onClick={() => setHoverNode(pid)}>
                             <div className="text-sm font-medium">{pid} - {n?.name ?? ''}</div>
+                            <div className="text-xs text-slate-400">{perLatency != null ? fmtMs(perLatency) : '-'}</div>
                           </div>
                           <div className="flex flex-col items-center ml-4">
                             {/* circle */}
