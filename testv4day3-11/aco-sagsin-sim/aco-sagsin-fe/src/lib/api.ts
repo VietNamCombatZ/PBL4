@@ -34,8 +34,21 @@ export async function openEvents(onEvent: (e: PacketEvent) => void): Promise<() 
     return mockOpenEvents(onEvent)
   }
   const es = new EventSource(`${BASE}/events`)
-  es.onmessage = (ev) => {
-    try { onEvent(JSON.parse(ev.data)) } catch {}
+  const _normalize = (obj: any) => {
+    // convert camelCase fields from backend to snake_case expected by FE
+    if (obj == null || typeof obj !== 'object') return obj
+    const out: any = { ...obj }
+    if ('cumulativeLatencyMs' in obj && !('cumulative_latency_ms' in obj)) out.cumulative_latency_ms = obj.cumulativeLatencyMs
+    if ('arrivedMs' in obj && !('arrived_ms' in obj)) out.arrived_ms = obj.arrivedMs
+    return out as PacketEvent
   }
+  // fallback: default message events (no explicit "event:" name)
+  es.onmessage = (ev) => {
+    try { onEvent(_normalize(JSON.parse(ev.data))) } catch {}
+  }
+  // named event emitted by server (e.g. `event: packet-progress`)
+  es.addEventListener('packet-progress', (ev: MessageEvent) => {
+    try { onEvent(_normalize(JSON.parse((ev as any).data))) } catch {}
+  })
   return () => es.close()
 }
