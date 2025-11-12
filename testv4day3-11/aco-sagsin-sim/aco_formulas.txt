@@ -1,0 +1,257 @@
+
+# aco_formulas.py (drop-in Python expressions Copilot can read)
+# Formulas for throughput and latency in SAGSIN ACO simulations.
+# Paste this into your project or import as needed.
+
+import math
+from typing import Iterable, List, Tuple, Optional
+
+# ------------------------------
+# 1) Radio link budget & SNR
+# ------------------------------
+
+def fspl_db_km_ghz(d_km: float, f_ghz: float) -> float:
+    """
+    Free-Space Path Loss in dB.
+    FSPL(dB) = 20*log10(d_km) + 20*log10(f_ghz) + 92.45
+    """
+    if d_km <= 0 or f_ghz <= 0:
+        raise ValueError("Distance and frequency must be positive.")
+    return 20.0 * math.log10(d_km) + 20.0 * math.log10(f_ghz) + 92.45
+
+def received_power_dbm(pt_dbm: float, gt_dbi: float, gr_dbi: float, fspl_db: float, extra_losses_db: float = 0.0) -> float:
+    """
+    Pr(dBm) = Pt(dBm) + Gt(dBi) + Gr(dBi) - FSPL(dB) - extra_losses(dB)
+    """
+    return pt_dbm + gt_dbi + gr_dbi - fspl_db - extra_losses_db
+
+def thermal_noise_dbm(bw_hz: float, noise_figure_db: float = 0.0, t0_dbmhz: float = -174.0) -> float:
+    """
+    N(dBm) ~= -174 dBm/Hz + 10*log10(B_Hz) + NF(dB)
+    t0_dbmhz is the thermal noise density in dBm/Hz (approx -174 dBm/Hz at 290K).
+    """
+    if bw_hz <= 0:
+        raise ValueError("Bandwidth must be positive.")
+    return t0_dbmhz + 10.0 * math.log10(bw_hz) + noise_figure_db
+
+def snr_db(pr_dbm: float, n_dbm: float) -> float:
+    """
+    SNR(dB) = Pr(dBm) - N(dBm)
+    """
+    return pr_dbm - n_dbm
+
+def db_to_linear(x_db: float) -> float:
+    return 10.0 ** (x_db / 10.0)
+
+def linear_to_db(x_lin: float) -> float:
+    if x_lin <= 0:
+        return -math.inf
+    return 10.0 * math.log10(x_lin)
+
+# ------------------------------
+# 2) Capacity / Throughput
+# ------------------------------
+
+def shannon_capacity_bps(bw_hz: float, snr_linear: float) -> float:
+    """
+    C = B * log2(1 + SNR)
+    """
+    if bw_hz <= 0:
+        raise ValueError("Bandwidth must be positive.")
+    return bw_hz * math.log2(1.0 + max(0.0, snr_linear))
+
+def link_throughput_bps(
+    bw_hz: float,
+    snr_db_value: float,
+    phy_eff: float = 0.8,
+    mac_eff: float = 0.9,
+    code_rate: float = 0.9,
+) -> float:
+    """
+    Practical link throughput using efficiency factors:
+    C_link ≈ eta_PHY * eta_MAC * R_code * (B * log2(1+SNR))
+    """
+    snr_lin = db_to_linear(snr_db_value)
+    c_shannon = shannon_capacity_bps(bw_hz, snr_lin)
+    eff = max(0.0, phy_eff) * max(0.0, mac_eff) * max(0.0, code_rate)
+    return eff * c_shannon
+
+def path_throughput_bps(per_link_bps: Iterable[float], shares: Optional[Iterable[float]] = None) -> float:
+    """
+    End-to-end throughput dominated by bottleneck with optional TDMA/FDMA shares.
+    C_path ≈ min_i (s_i * C_link,i), where s_i defaults to 1.0 if not provided.
+    """
+    per_link_bps = list(per_link_bps)
+    if not per_link_bps:
+        return 0.0
+    if shares is None:
+        return min(per_link_bps)
+    shares = list(shares)
+    if len(shares) != len(per_link_bps):
+        raise ValueError("shares and per_link_bps must have the same length.")
+    return min(max(0.0, s) * max(0.0, c) for s, c in zip(shares, per_link_bps))
+
+# ------------------------------
+# 3) Latency components
+# ------------------------------
+
+C_LIGHT_MPS = 299_792_458.0         # speed of light in vacuum
+PROP_V_FIBER = 2.0e8                # ~2e8 m/s in optical fiber
+PROP_V_COPPER = 2.0e8 * 0.7         # rough range for copper
+
+def transmission_delay_s(packet_bits: int, rate_bps: float) -> float:
+    """
+    t_tx = L / R
+    """
+    if packet_bits < 0 or rate_bps <= 0:
+        raise ValueError("packet_bits >= 0 and rate_bps > 0 required.")
+    return float(packet_bits) / rate_bps
+
+def propagation_delay_s(distance_m: float, propagation_speed_mps: float = C_LIGHT_MPS) -> float:
+    """
+    t_prop = d / v
+    """
+    if distance_m < 0 or propagation_speed_mps <= 0:
+        raise ValueError("distance_m >= 0 and propagation_speed_mps > 0 required.")
+    return distance_m / propagation_speed_mps
+
+def processing_delay_s(const_ms: float = 1.0) -> float:
+    """
+    Simple constant processing delay in seconds (ms input for convenience).
+    """
+    return max(0.0, const_ms) / 1000.0
+
+def mm1_wait_times(lambda_ps: float, mu_ps: float) -> Tuple[float, float]:
+    """
+    M/M/1 mean waiting times (in seconds) for packet arrivals in packets/sec.
+    Returns (W_system, W_queue) where:
+      W_system = 1 / (mu - lambda)
+      W_queue  = rho / (mu - lambda), rho = lambda/mu
+    If lambda >= mu, returns (inf, inf).
+    """
+    if lambda_ps < 0 or mu_ps <= 0:
+        raise ValueError("lambda >= 0 and mu > 0 required.")
+    if lambda_ps >= mu_ps:
+        return (math.inf, math.inf)
+    W_system = 1.0 / (mu_ps - lambda_ps)
+    rho = lambda_ps / mu_ps
+    W_queue = rho / (mu_ps - lambda_ps)
+    return (W_system, W_queue)
+
+def hop_latency_s(
+    packet_bits: int,
+    rate_bps: float,
+    distance_m: float,
+    v_mps: float = C_LIGHT_MPS,
+    proc_ms: float = 1.0,
+    queue_s: float = 0.0,
+) -> float:
+    """
+    t_hop = t_tx + t_prop + t_proc + t_queue
+    """
+    return (
+        transmission_delay_s(packet_bits, rate_bps)
+        + propagation_delay_s(distance_m, v_mps)
+        + processing_delay_s(proc_ms)
+        + max(0.0, queue_s)
+    )
+
+def path_latency_s(
+    hops: Iterable[Tuple[int, float, float, float, float]],
+) -> float:
+    """
+    Sum of hop latencies.
+    Each hop tuple: (packet_bits, rate_bps, distance_m, v_mps, queue_s).
+    processing delay per hop (ms) can be rolled into queue_s or v_mps term if constant elsewhere.
+    """
+    total = 0.0
+    for packet_bits, rate_bps, distance_m, v_mps, queue_s in hops:
+        total += hop_latency_s(packet_bits, rate_bps, distance_m, v_mps=v_mps, proc_ms=1.0, queue_s=queue_s)
+    return total
+
+# ------------------------------
+# 4) Helpers for geometry (optional)
+# ------------------------------
+
+EARTH_RADIUS_M = 6_371_000.0
+
+def great_circle_distance_m(lat1_deg: float, lon1_deg: float, lat2_deg: float, lon2_deg: float) -> float:
+    """
+    Haversine great-circle distance on the Earth's surface (meters).
+    Altitudes are not considered here.
+    """
+    lat1 = math.radians(lat1_deg)
+    lon1 = math.radians(lon1_deg)
+    lat2 = math.radians(lat2_deg)
+    lon2 = math.radians(lon2_deg)
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2.0)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2.0)**2
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return EARTH_RADIUS_M * c
+
+def slant_range_m(
+    lat1_deg: float, lon1_deg: float, alt1_m: float,
+    lat2_deg: float, lon2_deg: float, alt2_m: float
+) -> float:
+    """
+    Approximate slant range between two points given (lat, lon, alt). Uses Earth-centered vectors.
+    """
+    def to_ecef(lat_deg, lon_deg, alt_m):
+        lat = math.radians(lat_deg)
+        lon = math.radians(lon_deg)
+        r = EARTH_RADIUS_M + alt_m
+        x = r * math.cos(lat) * math.cos(lon)
+        y = r * math.cos(lat) * math.sin(lon)
+        z = r * math.sin(lat)
+        return (x, y, z)
+    x1, y1, z1 = to_ecef(lat1_deg, lon1_deg, alt1_m)
+    x2, y2, z2 = to_ecef(lat2_deg, lon2_deg, alt2_m)
+    dx, dy, dz = (x1 - x2), (y1 - y2), (z1 - z2)
+    return math.sqrt(dx*dx + dy*dy + dz*dz)
+
+# ------------------------------
+# 5) Example composition helpers
+# ------------------------------
+
+def link_capacity_from_budget_bps(
+    d_km: float,
+    f_ghz: float,
+    bw_hz: float,
+    pt_dbm: float,
+    gt_dbi: float,
+    gr_dbi: float,
+    nf_db: float,
+    extra_losses_db: float = 0.0,
+    phy_eff: float = 0.8,
+    mac_eff: float = 0.9,
+    code_rate: float = 0.9,
+) -> float:
+    """
+    Convenience function to go from (distance, freq, power, gains, NF) to practical link throughput.
+    """
+    fspl = fspl_db_km_ghz(d_km, f_ghz)
+    pr_dbm = received_power_dbm(pt_dbm, gt_dbi, gr_dbi, fspl, extra_losses_db)
+    n_dbm = thermal_noise_dbm(bw_hz, nf_db)
+    snr = snr_db(pr_dbm, n_dbm)
+    return link_throughput_bps(bw_hz, snr, phy_eff=phy_eff, mac_eff=mac_eff, code_rate=code_rate)
+
+def hop_latency_from_params_s(
+    packet_bits: int,
+    distance_m: float,
+    link_bps: float,
+    proc_ms: float = 1.0,
+    queue_s: float = 0.0,
+    propagation_speed_mps: float = C_LIGHT_MPS,
+) -> float:
+    """
+    Wrapper for single hop latency using link rate and distance.
+    """
+    return hop_latency_s(
+        packet_bits=packet_bits,
+        rate_bps=link_bps,
+        distance_m=distance_m,
+        v_mps=propagation_speed_mps,
+        proc_ms=proc_ms,
+        queue_s=queue_s,
+    )

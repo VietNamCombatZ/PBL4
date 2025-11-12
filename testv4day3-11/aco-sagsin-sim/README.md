@@ -69,7 +69,9 @@ Start (detached, direct Docker Compose alternative):
 
 ```bash
 # build and run detached, scaling node service
-docker compose up -d --build --scale node=10
+# docker compose up -d --build --scale node=10
+# docker compose up -d --build controller
+docker compose up -d  controller
 ```
 
 Stop the stack (keep volumes/cache):
