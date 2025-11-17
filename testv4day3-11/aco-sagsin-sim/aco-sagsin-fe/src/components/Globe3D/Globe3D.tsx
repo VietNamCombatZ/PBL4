@@ -26,6 +26,18 @@ export default function Globe3D({ nodes, arcs, hoverNodeId, onHoverNode, statusB
   const groundPts = useMemo(() => nodes.filter(n => n.kind === 'ground' || n.kind === 'sea').map(n => ({ ...n })), [nodes])
   const elevatedObjs = useMemo(() => nodes.filter(n => n.kind !== 'ground' && n.kind !== 'sea').map(n => ({ ...n })), [nodes])
 
+  // attach altitude to arcs so they connect to elevated objects (sat/air) instead of the globe surface
+  const processedArcs = useMemo(() => {
+    if (!arcs || !arcs.length) return [] as any[]
+    return arcs.map(a => {
+      const startNode = nodes.find(n => n.lat === a.startLat && n.lon === a.startLng)
+      const endNode = nodes.find(n => n.lat === a.endLat && n.lon === a.endLng)
+      const startAlt = startNode ? altitudeOffset(startNode.lat, startNode.lon, startNode.alt_m, startNode.kind) : 0
+      const endAlt = endNode ? altitudeOffset(endNode.lat, endNode.lon, endNode.alt_m, endNode.kind) : 0
+      return { ...a, startAlt, endAlt }
+    })
+  }, [arcs, nodes])
+
   return (
     <Globe
       ref={ref}
@@ -55,7 +67,10 @@ export default function Globe3D({ nodes, arcs, hoverNodeId, onHoverNode, statusB
       }}
       onPointHover={(d: any) => onHoverNode?.(d?.id)}
       onObjectHover={(d: any) => onHoverNode?.(d?.id)}
-      arcsData={arcs || []}
+  arcsData={processedArcs}
+  // tell globe how to read per-arc endpoint altitudes
+  arcStartAltitude={(d: any) => d.startAlt ?? 0}
+  arcEndAltitude={(d: any) => d.endAlt ?? 0}
       arcColor={() => ['#22d3ee', '#38bdf8']}
       arcStroke={1.5}
       animateIn
