@@ -20,3 +20,6 @@ lint:
 
 test:
 	docker compose run --rm controller pytest -q
+
+stop-containers:
+	./scripts/stop-containers.sh
