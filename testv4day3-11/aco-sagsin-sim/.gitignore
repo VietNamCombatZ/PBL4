@@ -6,3 +6,4 @@ __pycache__/
 /data/cache/
 /data/generated/links.json
 poetry.lock
+aco-sagsin-fe/node_modules/
