@@ -29,6 +29,7 @@ services:
     command: ["python", "-m", "src.services.node_agent"]
     volumes:
       - ./data/generated:/app/data/generated
+      - ./data/node_assignments:/var/lib/aco/node_assignments
     deploy:
       replicas: ${NODES:-50}
 

@@ -83,6 +83,7 @@ class SendPacketReq(BaseModel):
     src: int
     dst: int
     protocol: str = "UDP"
+    message: Optional[str] = None
 
 
 @app.get("/")
@@ -247,7 +248,6 @@ def post_send_packet(req: SendPacketReq):
                 return float(links_snapshot[idx].latency_ms)
             except Exception:
                 return 0.0
-
         for i, node_id in enumerate(path):
             # cumulative latency up to this node (sum of latencies of links before this node)
             if i == 0:
@@ -258,21 +258,24 @@ def post_send_packet(req: SendPacketReq):
                 cumulative += _link_latency(u, v)
 
             try:
-                _broadcast({
-                    "type": "packet-progress",
+                # include optional message when provided; useful at destination
+                base_evt = {
                     "sessionId": session_id,
                     "nodeId": node_id,
-                    "status": "pending",
                     "cumulativeLatencyMs": cumulative,
-                })
+                }
+                # pending
+                pending_evt = {"type": "packet-progress", "status": "pending", **base_evt}
+                if req.message:
+                    pending_evt["message"] = req.message if i == 0 else None
+                _broadcast(pending_evt)
                 time.sleep(0.3)
-                _broadcast({
-                    "type": "packet-progress",
-                    "sessionId": session_id,
-                    "nodeId": node_id,
-                    "status": "success",
-                    "cumulativeLatencyMs": cumulative,
-                })
+                # success
+                success_evt = {"type": "packet-progress", "status": "success", **base_evt}
+                # attach message to success event only at destination node
+                if req.message and node_id == req.dst:
+                    success_evt["message"] = req.message
+                _broadcast(success_evt)
             except Exception:
                 pass
             time.sleep(0.2)

@@ -19,11 +19,12 @@ def main() -> int:
     p.add_argument("--src", type=int, required=True)
     p.add_argument("--dst", type=int, required=True)
     p.add_argument("--protocol", type=str, default="UDP")
+    p.add_argument("--message", type=str, default=None, help="Optional message payload to deliver to dst node")
     p.add_argument("--base", type=str, default="http://localhost:8080")
     args = p.parse_args()
 
     url = args.base.rstrip("/") + "/simulate/send-packet"
-    payload = json.dumps({"src": args.src, "dst": args.dst, "protocol": args.protocol}).encode("utf-8")
+    payload = json.dumps({"src": args.src, "dst": args.dst, "protocol": args.protocol, "message": args.message}).encode("utf-8")
     req = urllib.request.Request(url, data=payload, method="POST")
     req.add_header("content-type", "application/json")
     try:

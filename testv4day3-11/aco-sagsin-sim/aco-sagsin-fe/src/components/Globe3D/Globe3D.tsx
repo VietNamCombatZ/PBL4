@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { NodeInfo, PacketStatus } from '../../lib/types'
 import { altitudeOffset, nodeColor } from '../../utils'
 
-type Arc = { startLat: number; startLng: number; endLat: number; endLng: number }
+type Arc = { startLat: number; startLng: number; endLat: number; endLng: number; color?: string }
 
 export default function Globe3D({ nodes, arcs, hoverNodeId, onHoverNode, statusByNode }: {
   nodes: NodeInfo[]
@@ -71,7 +71,7 @@ export default function Globe3D({ nodes, arcs, hoverNodeId, onHoverNode, statusB
   // tell globe how to read per-arc endpoint altitudes
   arcStartAltitude={(d: any) => d.startAlt ?? 0}
   arcEndAltitude={(d: any) => d.endAlt ?? 0}
-      arcColor={() => ['#22d3ee', '#38bdf8']}
+  arcColor={(d: any) => d?.color ?? ['#22d3ee', '#38bdf8']}
       arcStroke={1.5}
       animateIn
     />

@@ -62,7 +62,7 @@ Start (foreground, uses Makefile):
 make up
 
 # scale to a specific number of node agents
-NODES=60 make up
+NODES=600 make up
 ```
 
 Start (detached, direct Docker Compose alternative):

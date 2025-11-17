@@ -19,5 +19,10 @@ RUN poetry config virtualenvs.create false \
 
 COPY . .
 
-# Default command can be overridden by docker-compose
+# copy entrypoint and make it the container entrypoint
+COPY docker-entrypoint.py /app/docker-entrypoint.py
+RUN chmod +x /app/docker-entrypoint.py
+
+# Default command can be overridden by docker-compose; entrypoint will set NODE_INDEX if missing
+ENTRYPOINT ["python", "/app/docker-entrypoint.py"]
 CMD ["uvicorn", "src.services.controller:app", "--host", "0.0.0.0", "--port", "8080"]
