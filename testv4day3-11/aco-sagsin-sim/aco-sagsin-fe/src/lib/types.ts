@@ -15,4 +15,5 @@ export interface PacketEvent {
   sessionId: string; nodeId: number;
   status: PacketStatus;
   arrived_ms?: number; cumulative_latency_ms?: number;
+  message?: string;
 }

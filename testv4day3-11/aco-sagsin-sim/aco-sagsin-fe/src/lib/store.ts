@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { NodeInfo, LinkInfo, RouteResult, PacketEvent, PacketStatus } from './types'
 import { getNodes, getLinks, postRoute, sendPacket, openEvents } from './api'
 
-type PacketSession = { path: number[]; updates: Record<number, PacketStatus>; cumulative_latency_ms?: number; perHopLatency?: Record<number, number> }
+type PacketSession = { path: number[]; updates: Record<number, PacketStatus>; cumulative_latency_ms?: number; perHopLatency?: Record<number, number>; messages?: Record<number, string>; created_at?: number }
 
 type State = {
   nodes: NodeInfo[]
@@ -14,6 +14,7 @@ type State = {
   fetchLinks: () => Promise<void>
   findRoute: (src: number, dst: number) => Promise<void>
   startPacket: (src: number, dst: number, protocol: 'TCP'|'UDP') => Promise<string>
+  clearSession: (sessionId: string) => void
   handlePacketEvent: (e: PacketEvent) => void
   setHoverNode: (id?: number) => void
   clearRoute: () => void
@@ -41,11 +42,16 @@ export const useStore = create<State>((set, get) => ({
     const res: any = await sendPacket(src, dst, protocol)
     const sessionId: string = res.sessionId
     const pathFromServer: number[] | undefined = res.path
+    // If server provided a path (and optional cost), set it as the current route
+    if (pathFromServer && pathFromServer.length > 0) {
+      const r = { path: pathFromServer, cost: res.cost } as RouteResult
+      set({ currentRoute: r })
+    }
     const route = get().currentRoute
     const path = pathFromServer ?? route?.path ?? []
     const updates: Record<number, PacketStatus> = {}
   path.forEach((id) => { updates[id] = 'pending' })
-  set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates, perHopLatency: {} } } }))
+  set((s) => ({ packetSessions: { ...s.packetSessions, [sessionId]: { path, updates, perHopLatency: {}, created_at: Date.now() } } }))
     get().ensureEventStream()
     return sessionId
   },
@@ -53,14 +59,33 @@ export const useStore = create<State>((set, get) => ({
     if (closeEvents) return
     openEvents((e) => get().handlePacketEvent(e)).then((cls) => { closeEvents = cls })
   },
+  clearSession(sessionId) { set((s) => { const copy = { ...s.packetSessions }; delete copy[sessionId]; return { packetSessions: copy } }) },
   handlePacketEvent(e) {
     set((s) => {
       const cur = s.packetSessions[e.sessionId]
-      if (!cur) return s
-  const updates = { ...cur.updates, [e.nodeId]: e.status }
-  const per = { ...(cur.perHopLatency || {}) }
-  if (e.cumulative_latency_ms != null) per[e.nodeId] = e.cumulative_latency_ms
-  return { packetSessions: { ...s.packetSessions, [e.sessionId]: { ...cur, updates, perHopLatency: per, cumulative_latency_ms: e.cumulative_latency_ms ?? cur.cumulative_latency_ms } } }
+      // If we don't have a session record yet (e.g., session started outside the UI),
+      // create a minimal session and then apply the incoming event. We will
+      // reconstruct the path incrementally as events arrive.
+      if (!cur) {
+        const path = [e.nodeId]
+        const updates: Record<number, PacketStatus> = { [e.nodeId]: e.status }
+        const perHopLatency: Record<number, number> = {}
+        if (e.cumulative_latency_ms != null) perHopLatency[e.nodeId] = e.cumulative_latency_ms
+        const messages: Record<number, string> = {}
+        if (e.message) messages[e.nodeId] = e.message
+        return { packetSessions: { ...s.packetSessions, [e.sessionId]: { path, updates, perHopLatency, cumulative_latency_ms: e.cumulative_latency_ms, messages, created_at: Date.now() } } }
+      }
+      // existing session: update its status, per-hop latency and messages.
+      const updates = { ...cur.updates, [e.nodeId]: e.status }
+      const per = { ...(cur.perHopLatency || {}) }
+      if (e.cumulative_latency_ms != null) per[e.nodeId] = e.cumulative_latency_ms
+      const msgs = { ...(cur.messages || {}) }
+      if (e.message) msgs[e.nodeId] = e.message
+      // ensure the path contains this node (append if not present). Events are
+      // emitted in path order, so appending is safe.
+      const path = Array.isArray(cur.path) ? [...cur.path] : []
+      if (!path.includes(e.nodeId)) path.push(e.nodeId)
+      return { packetSessions: { ...s.packetSessions, [e.sessionId]: { ...cur, path, updates, perHopLatency: per, cumulative_latency_ms: e.cumulative_latency_ms ?? cur.cumulative_latency_ms, messages: msgs, created_at: cur.created_at ?? Date.now() } } }
     })
   },
   setHoverNode(id) { set({ hoverNodeId: id }) },

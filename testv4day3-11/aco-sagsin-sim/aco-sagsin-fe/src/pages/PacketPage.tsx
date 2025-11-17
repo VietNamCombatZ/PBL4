@@ -5,12 +5,34 @@ import Globe3D from '../components/Globe3D/Globe3D'
 import { fmtMs } from '../utils'
 
 export default function PacketPage() {
-  const { nodes, fetchNodes, currentRoute, findRoute, packetSessions, startPacket, hoverNodeId, setHoverNode } = useStore()
+  const { nodes, fetchNodes, currentRoute, findRoute, packetSessions, startPacket, hoverNodeId, setHoverNode, clearSession } = useStore()
   const [src, setSrc] = useState<number | ''>('')
   const [dst, setDst] = useState<number | ''>('')
   const [protocol, setProtocol] = useState<'TCP'|'UDP'>('TCP')
   const [sessionId, setSessionId] = useState<string>('')
   useEffect(() => { fetchNodes() }, [fetchNodes])
+
+  // ensure we subscribe to controller SSE on page mount so events originating
+  // outside the UI (host curl / other containers) are received and populate
+  // `packetSessions` in the store.
+  useEffect(() => {
+    try {
+      // ensureEventStream is stable from the store
+      ;(async () => { await (useStore.getState().ensureEventStream?.() as any) })()
+    } catch {}
+  }, [])
+
+  // if a session wasn't explicitly selected but events arrive, auto-select
+  // the most-recent session so the UI shows incoming events triggered from
+  // other sources (e.g. host curl). We watch packetSessions object and set
+  // sessionId to the newest key when none is selected.
+  useEffect(() => {
+    if (sessionId) return
+    const ids = Object.keys(packetSessions)
+    if (ids.length > 0) {
+      setSessionId(ids[ids.length - 1])
+    }
+  }, [packetSessions, sessionId])
 
   const onSend = async () => {
     if (src===''||dst==='') return
@@ -43,9 +65,39 @@ export default function PacketPage() {
     return list
   }, [session, nodes])
 
+  // messages per node for the current session
+  const messagesByNode = session?.messages ?? {}
+
   return (
     <div className="grid grid-cols-3 gap-4">
       <div className="col-span-1 space-y-3">
+        {/* Session history: pick older sessions created either by UI or external sends */}
+        <div className="bg-slate-900 rounded p-3">
+          <div className="font-semibold mb-2">Session History</div>
+          <div className="text-sm">
+            {Object.keys(packetSessions).length === 0 && <div className="text-slate-400">No sessions yet</div>}
+            <ul className="space-y-1 max-h-48 overflow-auto">
+              {Object.keys(packetSessions).slice().reverse().map((sid) => {
+                const s = packetSessions[sid]
+                const preview = s?.path ? s.path.join('\u2192') : ''
+                const ts = s?.created_at ? new Date(s.created_at).toLocaleString() : ''
+                return (
+                  <li key={sid} className="flex items-center justify-between">
+                    <button
+                      className={`w-full text-left px-2 py-1 rounded ${sid === sessionId ? 'bg-sky-700' : 'bg-slate-800 hover:bg-slate-700'}`}
+                      onClick={() => setSessionId(sid)}
+                    >
+                      <div className="text-xs font-medium">{sid.slice(0,8)}</div>
+                      <div className="text-xxs text-slate-400">{preview}</div>
+                      <div className="text-xxs text-slate-500 mt-1">{ts}</div>
+                    </button>
+                    <button className="ml-2 text-xs px-2 py-1 bg-rose-600 rounded" onClick={() => { clearSession(sid); if (sessionId===sid) setSessionId('') }}>Delete</button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
         <div className="bg-slate-900 rounded p-3">
           <div className="font-semibold mb-2">Gửi gói</div>
           <select className="bg-slate-800 rounded px-2 py-1 w-full mb-2" value={src} onChange={e=>setSrc(Number(e.target.value))}>
@@ -97,6 +149,7 @@ export default function PacketPage() {
                           <div className="cursor-pointer hover:text-white" onClick={() => setHoverNode(pid)}>
                             <div className="text-sm font-medium">{pid} - {n?.name ?? ''}</div>
                             <div className="text-xs text-slate-400">{perLatency != null ? fmtMs(perLatency) : '-'}</div>
+                            {messagesByNode[pid] && <div className="text-xs text-amber-300 mt-1">Message: {messagesByNode[pid]}</div>}
                           </div>
                           <div className="flex flex-col items-center ml-4">
                             {/* circle */}
