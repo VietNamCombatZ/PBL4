@@ -22,4 +22,5 @@ test:
 	docker compose run --rm controller pytest -q
 
 stop-containers:
-	./scripts/stop-containers.sh
+	@# run via shell so the script doesn't need the executable bit
+	sh ./scripts/stop-containers.sh
