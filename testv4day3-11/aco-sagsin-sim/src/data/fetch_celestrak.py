@@ -42,8 +42,28 @@ def fetch() -> List[Node]:
                         norad = int(sat.get("NORAD_CAT_ID", 0))
                     except Exception:
                         norad = 0
-                    lon = _norm_lon((norad % 360) - 180)
-                    lat = 0.0
+                    # compute a deterministic pseudo-random phase from NORAD id
+                    # try to pick a latitude within +/- inclination to better spread satellites off the equator
+                    import math
+
+                    # attempt to read inclination (degrees) from common keys
+                    incl = 0.0
+                    for k in ("inclination", "INCLINATION", "incl"):
+                        v = sat.get(k)
+                        if v is not None:
+                            try:
+                                incl = float(v)
+                                break
+                            except Exception:
+                                pass
+
+                    # deterministic angle based on norad
+                    theta_deg = (norad * 137) % 360
+                    theta = math.radians(theta_deg)
+                    # sub-satellite latitude oscillates between +/- inclination; sample it deterministically
+                    lat = math.sin(theta) * min(90.0, abs(incl))
+                    # longitude choice: distribute ring but offset by another pseudo-random value
+                    lon = _norm_lon(((norad * 59) % 360) - 180)
                     name = sat.get("OBJECT_NAME") or (f"SAT-{norad}" if norad else "")
                     nodes.append(Node(id=-1, kind="sat", lat=lat, lon=lon, alt_m=alt_m, name=name))
                 break

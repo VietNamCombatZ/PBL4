@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 
 from ..config import load_config
+import random
 from ..logging_setup import setup_logging
 from ..types import Node
 from .bounding import filter_bbox
@@ -79,25 +80,75 @@ def main() -> None:
             # normalize mix and compute per-kind quotas
             kinds = ["sat", "air", "ground", "sea"]
             total = sum(float(mix.get(k, 0.0)) for k in kinds)
-            quotas = {k: int(round(limit * (float(mix.get(k, 0.0)) / total))) if total > 0 else 0 for k in kinds}
-            # greedy selection per kind, then fill remaining from any kind
+            # avoid division by zero
+            if total <= 0:
+                quotas = {k: 0 for k in kinds}
+            else:
+                quotas = {k: int(round(limit * (float(mix.get(k, 0.0)) / total))) for k in kinds}
+
+            # prepare nodes grouped by kind and shuffle to avoid source-order bias
+            # ensure we have enough nodes per kind - synthesize if external sources returned too few
+            by_kind: dict[str, list[Node]] = {k: [n for n in nodes if n.kind == k] for k in kinds}
+            def _synthesize(kind: str, count: int) -> list[Node]:
+                out: list[Node] = []
+                bbox = cfg.bbox
+                for i in range(count):
+                    lat = random.uniform(bbox['min_lat'], bbox['max_lat'])
+                    lon = random.uniform(bbox['min_lon'], bbox['max_lon'])
+                    if kind == 'sat':
+                        alt_m = 550000.0
+                        name = f'SYN-SAT-{random.randint(1000,9999)}'
+                    elif kind == 'air':
+                        alt_m = 10000.0
+                        name = f'SYN-AIR-{random.randint(1000,9999)}'
+                    elif kind == 'sea':
+                        alt_m = 0.0
+                        name = f'SYN-SEA-{random.randint(1000,9999)}'
+                    else:
+                        alt_m = 0.0
+                        name = f'SYN-GND-{random.randint(1000,9999)}'
+                    out.append(Node(id=-1, kind=kind, lat=lat, lon=lon, alt_m=alt_m, name=name))
+                return out
+
+            # if mix suggests quotas larger than available samples, synthesize extra
+            for k in kinds:
+                desired = quotas.get(k, 0)
+                have = len(by_kind.get(k, []))
+                if have < desired:
+                    needed = desired - have
+                    by_kind[k].extend(_synthesize(k, needed))
+
+            import random as _rand
+            # shuffle groups to avoid source-order bias
+            for k in kinds:
+                _rand.shuffle(by_kind[k])
+
             selected: list[Node] = []
             remaining = limit
-            by_kind: dict[str, list[Node]] = {k: [n for n in nodes if n.kind == k] for k in kinds}
+
+            # take per-kind quota (bounded by availability)
             for k in kinds:
-                take = min(len(by_kind[k]), max(0, quotas[k]))
-                selected.extend(by_kind[k][:take])
-                remaining -= take
+                take = min(len(by_kind[k]), max(0, quotas.get(k, 0)))
+                if take > 0:
+                    selected.extend(by_kind[k][:take])
+                    remaining -= take
+
+            # if rounding caused us to undershoot/overshoot, fill or trim
             if remaining > 0:
-                # fill remainder from remaining nodes regardless of kind, avoiding duplicates
-                picked_ids = {id(n) for n in selected}
-                for n in nodes:
-                    if id(n) in picked_ids:
-                        continue
-                    selected.append(n)
-                    remaining -= 1
+                # build pool of all remaining nodes (exclude already selected)
+                picked = {id(n) for n in selected}
+                pool = [n for n in nodes if id(n) not in picked]
+                _rand.shuffle(pool)
+                for n in pool:
                     if remaining <= 0:
                         break
+                    selected.append(n)
+                    remaining -= 1
+            elif remaining < 0:
+                # too many selected due to rounding up; trim randomly to fit
+                _rand.shuffle(selected)
+                selected = selected[:limit]
+
             nodes = selected[:limit]
         else:
             nodes = nodes[:limit]
