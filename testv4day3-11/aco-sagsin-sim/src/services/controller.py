@@ -21,6 +21,7 @@ from ..logging_setup import setup_logging
 from ..net.graph import build_graph
 from ..net.updater import rebuild_from_nodes, update_epoch
 from ..types import GraphState, Link, Node
+from ..lib import metrics as metrics_lib
 
 app = FastAPI(title="ACO SAGSIN Controller")
 
@@ -184,7 +185,14 @@ def post_route(req: RouteReq):
         # Guard against NaN/Infinity to keep JSON RFC-compliant and signal infeasible routes
         if not path or not math.isfinite(cost):
             raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
-        return {"path": path, "cost": float(cost)}
+        # compute server-side metrics for apples-to-apples comparison
+        try:
+            latency_ms = metrics_lib.path_latency_ms_for_state(path, STATE.nodes)
+            throughput_mbps = metrics_lib.path_throughput_mbps_for_state(path, STATE.nodes)
+        except Exception:
+            latency_ms = None
+            throughput_mbps = None
+        return {"path": path, "cost": float(cost), "latency_ms": latency_ms, "throughput_mbps": throughput_mbps}
 
 
 @app.post("/simulate/toggle-link")
@@ -232,6 +240,13 @@ def post_send_packet(req: SendPacketReq):
         raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
 
     session_id = str(uuid.uuid4())
+    # precompute ACO metrics to return to the caller
+    try:
+        computed_latency_ms = metrics_lib.path_latency_ms_for_state(path, STATE.nodes)
+        computed_throughput_mbps = metrics_lib.path_throughput_mbps_for_state(path, STATE.nodes)
+    except Exception:
+        computed_latency_ms = None
+        computed_throughput_mbps = None
 
     def _simulate():
         # compute cumulative latency per node along the path (ms)
@@ -281,7 +296,7 @@ def post_send_packet(req: SendPacketReq):
             time.sleep(0.2)
 
     threading.Thread(target=_simulate, daemon=True).start()
-    return {"sessionId": session_id, "path": path, "cost": float(cost)}
+    return {"sessionId": session_id, "path": path, "cost": float(cost), "latency_ms": computed_latency_ms, "throughput_mbps": computed_throughput_mbps}
 
 
 @app.get("/events")

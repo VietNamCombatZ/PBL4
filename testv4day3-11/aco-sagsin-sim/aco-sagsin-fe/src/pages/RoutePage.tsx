@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import Globe3D from '../components/Globe3D/Globe3D'
 import { fmtMbps, fmtMs } from '../utils'
+import metrics from '../lib/metrics'
 
 export default function RoutePage() {
   const { nodes, fetchNodes, links, fetchLinks, currentRoute, findRoute, hoverNodeId, setHoverNode } = useStore()
@@ -74,6 +75,29 @@ export default function RoutePage() {
     return list
   }, [currentRoute, nodes, rwrPath, showACO, showRWR])
 
+  // computed metrics for ACO and RWR using the formulas in src/lib/metrics
+  const acoComputedLatency = useMemo(() => {
+    if (!currentRoute?.path) return undefined
+    const ms = metrics.pathLatencyMsForNodes(currentRoute.path, nodes)
+    return isFinite(ms) ? ms : undefined
+  }, [currentRoute?.path, nodes])
+  const acoComputedThroughput = useMemo(() => {
+    if (!currentRoute?.path) return undefined
+    const mbps = metrics.pathThroughputMbpsForNodes(currentRoute.path, nodes)
+    return isFinite(mbps) && mbps > 0 ? mbps : undefined
+  }, [currentRoute?.path, nodes])
+
+  const rwrComputedLatency = useMemo(() => {
+    if (!rwrPath) return undefined
+    const ms = metrics.pathLatencyMsForNodes(rwrPath, nodes)
+    return isFinite(ms) ? ms : undefined
+  }, [rwrPath, nodes])
+  const rwrComputedThroughput = useMemo(() => {
+    if (!rwrPath) return undefined
+    const mbps = metrics.pathThroughputMbpsForNodes(rwrPath, nodes)
+    return isFinite(mbps) && mbps > 0 ? mbps : undefined
+  }, [rwrPath, nodes])
+
   return (
     <div className="grid grid-cols-3 gap-4">
       <div className="col-span-1 space-y-3">
@@ -99,9 +123,16 @@ export default function RoutePage() {
         <div className="bg-slate-900 rounded p-3">
           <div className="font-semibold mb-2">Metrics</div>
           <div className="text-sm text-slate-300 space-y-1">
-            <div>Latency: {fmtMs(currentRoute?.latency_ms)}</div>
-            <div>Throughput: {fmtMbps(currentRoute?.throughput_mbps)}</div>
+            <div className="font-semibold">ACO (server path)</div>
+            <div>Latency (server): {fmtMs(currentRoute?.latency_ms)}</div>
+            <div>Throughput (server): {fmtMbps(currentRoute?.throughput_mbps)}</div>
+            <div className="mt-1">Latency (computed): {fmtMs(acoComputedLatency)}</div>
+            <div>Throughput (computed): {fmtMbps(acoComputedThroughput)}</div>
             <div>Cost: {currentRoute?.cost ?? '-'}</div>
+
+            <div className="mt-2 font-semibold">RWR (client baseline)</div>
+            <div>Latency (computed): {fmtMs(rwrComputedLatency)}</div>
+            <div>Throughput (computed): {fmtMbps(rwrComputedThroughput)}</div>
           </div>
         </div>
         {currentRoute?.path && (
