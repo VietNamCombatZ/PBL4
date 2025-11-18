@@ -124,8 +124,8 @@ export default function RoutePage() {
           <div className="font-semibold mb-2">Metrics</div>
           <div className="text-sm text-slate-300 space-y-1">
             <div className="font-semibold">ACO (server path)</div>
-            <div>Latency (server): {fmtMs(currentRoute?.latency_ms)}</div>
-            <div>Throughput (server): {fmtMbps(currentRoute?.throughput_mbps)}</div>
+            {/* <div>Latency (server): {fmtMs(currentRoute?.latency_ms)}</div>
+            <div>Throughput (server): {fmtMbps(currentRoute?.throughput_mbps)}</div> */}
             <div className="mt-1">Latency (computed): {fmtMs(acoComputedLatency)}</div>
             <div>Throughput (computed): {fmtMbps(acoComputedThroughput)}</div>
             <div>Cost: {currentRoute?.cost ?? '-'}</div>

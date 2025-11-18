@@ -1,0 +1,37 @@
+```mermaid
+sequenceDiagram
+  autonumber
+  participant User
+  participant DataPage
+  participant Store
+  participant FEApi
+  participant Controller
+  participant Globe
+  participant Table
+
+  Note over User,DataPage: Người dùng mở trang Data
+  User->>DataPage: Component mount
+  DataPage->>Store: useEffect -> fetchNodes()
+  Store->>FEApi: gọi getNodes()
+  FEApi->>Controller: HTTP GET /nodes
+  Controller-->>FEApi: trả về nodes JSON
+  FEApi-->>Store: trả về NodeInfo[]
+  Store-->>DataPage: cập nhật state.nodes
+  DataPage->>DataPage: tính filtered, counts, hoverNode
+  DataPage->>Globe: render(nodes = filtered)
+
+  Note over User,Globe: Người dùng di chuột lên globe để hover
+  User->>Globe: sự kiện hover(nodeId)
+  Globe->>Store: gọi onHoverNode(nodeId) -> setHoverNode
+  Store-->>DataPage: hoverNodeId được cập nhật
+  DataPage->>DataPage: hiển thị chi tiết hoverNode ở panel phải
+
+  Note over DataPage: Người dùng tìm kiếm / lọc / nhấn "Làm mới"
+  User->>DataPage: nhập q / chọn kind
+  DataPage->>DataPage: cập nhật state local (q, kind)
+  User->>DataPage: nhấn nút "Làm mới"
+  DataPage->>Store: fetchNodes() (lặp lại)
+
+  Note over DataPage,Table: Bảng dưới Globe hiển thị các node đã lọc
+  DataPage->>Table: render hàng cho filtered nodes
+```

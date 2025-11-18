@@ -154,14 +154,79 @@ curl -s -X POST http://localhost:8080/simulate/send-packet \
 
 - Start send a packet
 ```bash
-curl -s -N http://localhost:8080/events &
-curl -s -X POST http://localhost:8080/simulate/send-packet \
-  -H 'content-type: application/json' \
-  -d '{"src":1,"dst":25,"protocol":"UDP"}' | jq .
+# curl -s -N http://localhost:8080/events &
+# curl -s -X POST http://localhost:8080/simulate/send-packet \
+#   -H 'content-type: application/json' \
+#   -d '{"src":1,"dst":25,"protocol":"UDP"}' | jq .
+
+curl -sS -X POST http://localhost:8080/simulate/send-packet \
+  -H 'Content-Type: application/json' \
+  -d '{"src":4,"dst":117,"protocol":"TCP","message":"hello from host"}' | jq
+
 ```
 
 - From inside the image (or via docker exec), you can use a small CLI:
 
 ```bash
 docker compose run --rm controller python -m src.tools.send_packet_cli --src 1 --dst 25 --protocol UDP
+```
+
+
+ ## Sequence Diagram (Ctrl + Shift +V (need Markdown Preview Mermaid Support exrention on VSCode installed))
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Dev
+    participant FE
+    participant Controller
+    participant Seeder
+    participant Fetchers
+    participant Cache
+    participant Generated
+    participant Graph
+    participant LinkModels
+    participant ACO
+    participant Nodes
+    participant SSE
+
+    Note over Dev,Seeder: Offline or initial run: seed data
+    Dev->>Seeder: run make seed / python -m src.data.seed
+    Seeder->>Fetchers: fetch sources: Celestrak, OpenSky, SatNOGS, NDBC
+    Fetchers-->>Cache: write/read cached payloads
+    alt caches empty or missing kinds
+        Seeder-->>Seeder: synthesize fallback nodes inside bbox
+    end
+    Seeder->>Generated: write nodes.json and links.json
+
+    Note over Controller,Generated: controller loads generated files on start or reload
+    Dev->>Controller: POST /config/reload
+    Controller->>Generated: load data/generated/nodes.json
+    Controller->>Graph: rebuild_from_nodes (build graph)
+    Graph->>LinkModels: compute distances and link metrics (haversine, FSPL, SNR, capacity)
+    LinkModels-->>Graph: return link attributes
+    Graph-->>Controller: graph ready (nodes + links)
+
+    Note over FE,Controller: runtime UI interactions
+    FE->>Controller: GET /nodes
+    Controller-->>FE: nodes JSON (current GraphState)
+
+    FE->>Controller: POST /route {src,dst,objective}
+    Controller->>ACO: compute routes (ACO solver)
+    ACO-->>Controller: best route(s)
+    Controller-->>FE: route response (with metrics)
+
+    alt simulate packet (from FE or CLI)
+        FE->>Controller: POST /simulate/send-packet {src,dst,protocol}
+        Controller->>SSE: create packet event stream (/events) - emit start
+        Controller->>Nodes: instruct node agents / simulate hops
+        Nodes-->>Controller: node-level events (hop progress)
+        Controller->>SSE: forward per-hop events to SSE clients
+        SSE-->>FE: client receives event stream (progress, delivered)
+        Controller-->>FE: final packet result (path, stats)
+    end
+
+    Note over Nodes,Controller: node agents bind NODE_INDEX -> pick node from nodes.json
+    Dev->>Nodes: docker compose up --scale node=N
+    Nodes->>Controller: heartbeats / register
+
 ```

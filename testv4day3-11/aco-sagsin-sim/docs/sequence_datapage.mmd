@@ -1,0 +1,36 @@
+```mermaid
+sequenceDiagram
+  autonumber
+  participant User as "User (browser)"
+  participant DataPage as "DataPage Component"
+  participant Store as "Zustand Store"
+  participant API as "FE API (getNodes)"
+  participant Controller as "Controller (GET /nodes)"
+  participant Globe as "Globe3D Component"
+
+  Note over User,DataPage: User opens Data page or focuses it
+  User->>DataPage: mount
+  DataPage->>Store: useEffect -> fetchNodes()
+  Store->>API: getNodes()
+  API->>Controller: HTTP GET /nodes
+  Controller-->>API: nodes JSON
+  API-->>Store: parsed NodeInfo[]
+  Store-->>DataPage: set nodes (state updated)
+  DataPage-->>DataPage: compute filtered, counts, hoverNode
+  DataPage->>Globe: render(nodes=filtered)
+  Note over User,Globe: User moves mouse / hovers over a node on globe
+  User->>Globe: hover event (nodeId)
+  Globe->>Store: onHoverNode(nodeId) -> setHoverNode
+  Store-->>DataPage: hoverNodeId updated
+  DataPage->>DataPage: find hoverNode from nodes and display details
+
+  Note over DataPage: User filters/searches or clicks "Làm mới"
+  User->>DataPage: type filter string / select kind
+  DataPage->>DataPage: update local state (q / kind)
+  User->>DataPage: click "Làm mới"
+  DataPage->>Store: fetchNodes()
+  Store->>API: getNodes() (repeat flow)
+
+  Note over DataPage,Globe: Table below Globe mirrors filtered nodes
+  DataPage->>User: render table rows for filtered nodes
+```
