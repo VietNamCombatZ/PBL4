@@ -26,14 +26,14 @@ export default function DataPage() {
         </div>
         <Globe3D nodes={filtered} hoverNodeId={hoverNodeId} onHoverNode={setHoverNode} />
         <div className="mt-3 max-h-72 overflow-auto text-sm">
-          <table className="w-full">
+          {/* <table className="w-full">
             <thead className="text-slate-400"><tr><th className="text-left">id</th><th className="text-left">name</th><th>kind</th><th>lat</th><th>lon</th><th>alt_m</th></tr></thead>
             <tbody>
               {filtered.map(n=> (
                 <tr key={n.id} className="border-b border-slate-800"><td>{n.id}</td><td>{n.name}</td><td className="text-center">{n.kind}</td><td>{n.lat.toFixed(3)}</td><td>{n.lon.toFixed(3)}</td><td>{n.alt_m ?? '-'}</td></tr>
               ))}
             </tbody>
-          </table>
+          </table> */}
         </div>
       </div>
       <div className="col-span-1">

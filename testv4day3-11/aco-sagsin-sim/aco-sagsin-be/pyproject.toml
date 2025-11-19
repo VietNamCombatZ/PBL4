@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "aco-sagsin-sim"
+version = "0.1.0"
+description = "ACO path selection simulator for SAGSIN"
+authors = ["You <you@example.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.30.0"}
+httpx = "^0.27.0"
+python-dotenv = "^1.0.1"
+pyyaml = "^6.0.2"
+pymongo = "^4.6.1"
+scikit-learn = "^1.5.2"
+numpy = "^1.26.4"
+scipy = "^1.13.1"
+geopy = "^2.4.1"
+pydantic = "^2.8.2"
+retrying = "^1.3.4"
+streamlit = "^1.39.0"
+requests = "^2.32.3"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.1.1"
+ruff = "^0.5.6"
+black = "^24.8.0"
+mypy = "^1.11.2"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+warn_unused_configs = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
