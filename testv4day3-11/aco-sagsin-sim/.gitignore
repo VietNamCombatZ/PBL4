@@ -1,0 +1,9 @@
+aco-sagsin-be/__pycache__/
+aco-sagsin-be/*.pyc
+aco-sagsin-be/.venv/
+aco-sagsin-be/.mypy_cache/
+aco-sagsin-be/.pytest_cache/
+aco-sagsin-be/data/cache/
+aco-sagsin-be/data/generated/links.json
+aco-sagsin-be/poetry.lock
+aco-sagsin-fe/node_modules/
