@@ -167,6 +167,23 @@ def main() -> None:
     with open(GEN_DIR / "nodes.json", "w", encoding="utf-8") as f:
         json.dump([n.__dict__ for n in nodes], f)
 
+    # Optional: write nodes to MongoDB if enabled; log success/failure
+    try:
+        import logging
+        from ..config import load_config as _lc
+        cfg2 = _lc()
+        if cfg2.enable_db:
+            from .db import write_nodes as _write_nodes
+            ok = _write_nodes([n.__dict__ for n in nodes])
+            log = logging.getLogger(__name__)
+            if ok:
+                log.info("nodes written to MongoDB (%d records)", len(nodes))
+            else:
+                log.warning("failed to write nodes to MongoDB; using file only")
+    except Exception:
+        # ignore logging failures in seeding path
+        pass
+
     # create minimal placeholder links.json for convenience (controller will rebuild anyway)
     with open(GEN_DIR / "links.json", "w", encoding="utf-8") as f:
         json.dump([], f)

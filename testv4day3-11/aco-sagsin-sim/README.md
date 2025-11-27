@@ -141,6 +141,53 @@ pytest -q
 - If offline, seed uses cache and falls back to a tiny synthetic toy graph if cache is empty, so /route still works.
 - The ACO objective normalizes latency, inverse-capacity, energy, inverse-reliability to [0,1] with weights.
 
+## MongoDB Integration (Optional)
+
+You can persist fetched source payloads and the generated `nodes` dataset in MongoDB for sharing across runs/containers.
+
+Enable it via environment variables or `config.yaml` top-level keys:
+
+```yaml
+enable_db: true
+mongo_uri: "mongodb://localhost:27017"   # or your remote URI
+mongo_db: "aco"
+mongo_cache_collection: "cache"
+mongo_nodes_collection: "nodes"
+mongo_connect_timeout_sec: 5.0
+```
+
+Or set environment variables (override YAML):
+
+```bash
+export ENABLE_DB=true
+export MONGO_URI="mongodb://localhost:27017"
+export MONGO_DB="aco"
+export MONGO_CACHE_COLLECTION="cache"
+export MONGO_NODES_COLLECTION="nodes"
+export MONGO_CONNECT_TIMEOUT_SEC=5
+```
+
+Behavior:
+
+- Fetchers first try MongoDB (cache collection) for a fresh (TTL-valid) payload; if missing or expired they do HTTP fetch and then write both file cache and MongoDB.
+- Seeder always writes `data/generated/nodes.json` and, when enabled, also stores the full list of nodes in `mongo_nodes_collection` under document `_id = "nodes"`.
+- Controller startup & `/config/reload` prefer MongoDB nodes (if available) and fall back to file or toy nodes.
+- If MongoDB is unreachable or `enable_db=false`, everything transparently falls back to local JSON files.
+
+Install driver (already in `pyproject.toml`):
+```bash
+poetry install   # or pip install pymongo
+```
+
+Quick test with local Mongo:
+```bash
+docker run --rm -d -p 27017:27017 --name aco-mongo mongo:6
+export ENABLE_DB=true MONGO_URI="mongodb://localhost:27017"
+make seed
+make up
+curl -s localhost:8080/nodes | jq '. | length'
+```
+
 ## Packet simulation
 
 - Start a packet and observe events:

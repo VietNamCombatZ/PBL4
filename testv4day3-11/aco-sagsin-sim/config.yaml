@@ -41,7 +41,7 @@ link_model:
 # Optional selection controls
 selection:
   continent: ""         # asia|europe|africa|north_america|south_america|america|oceania
-  node_limit: 600          # keep at most this many nodes
+  node_limit: 200          # keep at most this many nodes
   type_mix:                # desired share per kind (used with node_limit)
     sat: 0.5
     air: 0.0

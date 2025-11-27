@@ -4,12 +4,20 @@ services:
     image: aco-sagsin-sim:latest
     container_name: aco-controller
     command: ["uvicorn", "src.services.controller:app", "--host", "0.0.0.0", "--port", "8080"]
+    depends_on:
+      - mongo
     ports:
       - "8080:8080"
     environment:
       - PYTHONUNBUFFERED=1
       - EPOCH_SEC=${EPOCH_SEC:-10}
       - OFFLINE=${OFFLINE:-false}
+      # MongoDB (optional)
+      - ENABLE_DB=${ENABLE_DB:-true}
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017}
+      - MONGO_DB=${MONGO_DB:-aco}
+      - MONGO_CACHE_COLLECTION=${MONGO_CACHE_COLLECTION:-cache}
+      - MONGO_NODES_COLLECTION=${MONGO_NODES_COLLECTION:-nodes}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./data:/app/data
@@ -45,7 +53,25 @@ services:
     volumes:
       - ./data:/app/data
 
+  mongo:
+    image: mongo:6
+    container_name: aco-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
 networks:
   default:
     name: aco-sagsin
     driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local

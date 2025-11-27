@@ -64,6 +64,13 @@ class Config:
     continent: Optional[str] = None  # e.g., asia, europe, africa, america, north_america, south_america, oceania
     node_limit: int = 0  # 0 = unlimited
     type_mix: Dict[str, float] | None = None  # e.g., {"sat":0.3, "air":0.5, "ground":0.2, "sea":0.0}
+    # MongoDB optional settings
+    enable_db: bool = False
+    mongo_uri: Optional[str] = None
+    mongo_db: str = "aco"
+    mongo_cache_collection: str = "cache"
+    mongo_nodes_collection: str = "nodes"
+    mongo_connect_timeout_sec: float = 5.0
 
 
 def load_config(path: str = "config.yaml") -> Config:
@@ -120,6 +127,12 @@ def load_config(path: str = "config.yaml") -> Config:
         http_timeout_sec=int(os.getenv("HTTP_TIMEOUT_SEC", 10)),
         http_retries=int(os.getenv("HTTP_RETRIES", 3)),
         backoff_factor=float(os.getenv("BACKOFF_FACTOR", 0.6)),
+        enable_db=_to_bool(os.getenv("ENABLE_DB"), y.get("enable_db", False)),
+        mongo_uri=os.getenv("MONGO_URI", y.get("mongo_uri")),
+        mongo_db=os.getenv("MONGO_DB", y.get("mongo_db", "aco")),
+        mongo_cache_collection=os.getenv("MONGO_CACHE_COLLECTION", y.get("mongo_cache_collection", "cache")),
+        mongo_nodes_collection=os.getenv("MONGO_NODES_COLLECTION", y.get("mongo_nodes_collection", "nodes")),
+        mongo_connect_timeout_sec=float(os.getenv("MONGO_CONNECT_TIMEOUT_SEC", y.get("mongo_connect_timeout_sec", 5.0))),
     continent=(os.getenv("CONTINENT") or sel.get("continent")),
     node_limit=int(os.getenv("NODE_LIMIT", sel.get("node_limit", 0) or 0)),
     type_mix=sel.get("type_mix"),

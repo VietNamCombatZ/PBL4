@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import logging
 
 from ..aco.solver import ACO
 from ..config import Config, load_config
@@ -102,6 +103,7 @@ def root():
             "/events",
             "/config/reload",
             "/health",
+            "/health/db",
         ],
     }
 
@@ -111,13 +113,43 @@ def health():
     return {"status": "healthy"}
 
 
+@app.get("/health/db")
+def health_db():
+    try:
+        if not CFG or not CFG.enable_db:
+            return {"enable_db": False, "available": False}
+        from ..data.db import available as _db_available
+
+        avail = _db_available()
+        return {"enable_db": True, "available": bool(avail)}
+    except Exception:
+        return {"enable_db": bool(CFG.enable_db) if CFG else False, "available": False}
+
+
 @app.on_event("startup")
 def on_start() -> None:
     setup_logging()
     global CFG, STATE
     CFG = load_config()
-    if not NODES_PATH.exists():
-        # fallback toy nodes
+    log = logging.getLogger(__name__)
+    nodes_source_path = str(NODES_PATH)
+    use_db_nodes = False
+    # Attempt DB nodes first when enabled
+    try:
+        if CFG.enable_db:
+            from ..data.db import read_nodes as _read_nodes, available as _db_available
+            if _db_available():
+                db_nodes = _read_nodes()
+                if db_nodes:
+                    # Write to temp file for rebuild convenience
+                    NODES_PATH.parent.mkdir(parents=True, exist_ok=True)
+                    with open(NODES_PATH, "w", encoding="utf-8") as f:
+                        json.dump(db_nodes, f)
+                    use_db_nodes = True
+    except Exception:
+        pass
+    if not use_db_nodes and not NODES_PATH.exists():
+        # fallback toy nodes if neither DB nor file nodes are present
         toy = [
             Node(id=0, kind="ground", lat=0.0, lon=0.0, alt_m=0.0, name="ground-0").__dict__,
             Node(id=1, kind="ground", lat=0.1, lon=0.1, alt_m=0.0, name="ground-1").__dict__,
@@ -126,7 +158,13 @@ def on_start() -> None:
         NODES_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(NODES_PATH, "w", encoding="utf-8") as f:
             json.dump(toy, f)
-    STATE = rebuild_from_nodes(str(NODES_PATH))
+    if use_db_nodes:
+        log.info("Loaded nodes from MongoDB (written to %s)", NODES_PATH)
+    elif NODES_PATH.exists():
+        log.info("Loaded nodes from file %s", NODES_PATH)
+    else:
+        log.info("Loaded toy nodes (fallback)")
+    STATE = rebuild_from_nodes(nodes_source_path)
 
     # start epoch thread
     th = threading.Thread(target=_epoch_loop, daemon=True)
@@ -222,7 +260,28 @@ def post_reload():
     global CFG, STATE
     CFG = load_config()
     with STATE_LOCK:
+        # Try DB again on reload if enabled
+        db_used = False
+        try:
+            if CFG.enable_db:
+                from ..data.db import read_nodes as _read_nodes, available as _db_available
+                if _db_available():
+                    db_nodes = _read_nodes()
+                    if db_nodes:
+                        with open(NODES_PATH, "w", encoding="utf-8") as f:
+                            json.dump(db_nodes, f)
+                        db_used = True
+        except Exception:
+            pass
         STATE = rebuild_from_nodes(str(NODES_PATH))
+    try:
+        log = logging.getLogger(__name__)
+        if db_used:
+            log.info("Reloaded nodes from MongoDB")
+        else:
+            log.info("Reloaded nodes from file %s", NODES_PATH)
+    except Exception:
+        pass
     return {"ok": True}
 
 

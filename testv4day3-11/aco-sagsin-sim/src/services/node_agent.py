@@ -24,12 +24,17 @@ def main() -> None:
         return
     with open(NODES_PATH, "r", encoding="utf-8") as f:
         nodes = json.load(f)
-    if idx < len(nodes):
-        node = nodes[idx]
+    node: dict[str, Any] | None = None
+    if 0 <= idx < len(nodes):
+        try:
+            node = nodes[idx]
+        except Exception:
+            node = None
+    if not node:
+        print(f"Node agent in standby (no assigned node for idx={idx}); exiting")
+        return
     nm = node.get('name') or f"{node.get('kind','node')}-{node.get('id','?')}"
-    print(f"Node agent started for node id={node['id']} kind={node['kind']} name={nm}")
-    # else:
-    #     print("Node agent in standby (no assigned node)")
+    print(f"Node agent started for node id={node.get('id')} kind={node.get('kind')} name={nm}")
     # simple heartbeat
     # start a background thread to listen for packet events from controller SSE
     def _listen_events():
@@ -58,7 +63,7 @@ def main() -> None:
                                 # look for packet-progress events with message
                                 t = obj.get("type")
                                 node_id = obj.get("nodeId")
-                                if node_id == node.get("id"):
+                                if node and node_id == node.get("id"):
                                     # print status updates
                                     status = obj.get("status")
                                     if obj.get("message") and status == "success":
