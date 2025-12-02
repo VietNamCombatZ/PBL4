@@ -5,7 +5,7 @@ import { fmtMbps, fmtMs } from '../utils'
 import metrics from '../lib/metrics'
 
 export default function RoutePage() {
-  const { nodes, fetchNodes, links, fetchLinks, currentRoute, findRoute, hoverNodeId, setHoverNode } = useStore()
+  const { nodes, fetchNodes, links, fetchLinks, currentRoute, findRoute, hoverNodeId, setHoverNode, routeError, routeLoading } = useStore()
   const [src, setSrc] = useState<number | ''>('')
   const [dst, setDst] = useState<number | ''>('')
   const [rwrPath, setRwrPath] = useState<number[] | undefined>(undefined)
@@ -112,9 +112,12 @@ export default function RoutePage() {
             {nodes.map(n=> <option key={n.id} value={n.id}>{n.id} - {n.name}</option>)}
           </select>
           <div className="flex gap-2">
-            <button className="bg-sky-600 px-3 py-1 rounded flex-1" onClick={onFind}>Tìm tuyến (ACO)</button>
+            <button className="bg-sky-600 px-3 py-1 rounded flex-1 disabled:opacity-50" disabled={routeLoading || src==='' || dst===''} onClick={onFind}>
+              {routeLoading ? 'Đang tính...' : 'Tìm tuyến (ACO)'}
+            </button>
             <button className="bg-amber-500 px-3 py-1 rounded flex-1" onClick={() => { if (src!=='' && dst!=='') { const p = runRWR(Number(src), Number(dst)); setRwrPath(p) } }}>Baseline (RWR)</button>
           </div>
+          {routeError && <div className="mt-2 text-xs text-red-400">{routeError}</div>}
           <div className="flex items-center gap-2 mt-2">
             <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={showACO} onChange={e=>setShowACO(e.target.checked)} /> Show ACO</label>
             <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={showRWR} onChange={e=>setShowRWR(e.target.checked)} /> Show RWR</label>
@@ -135,7 +138,7 @@ export default function RoutePage() {
             <div>Throughput (computed): {fmtMbps(rwrComputedThroughput)}</div>
           </div>
         </div>
-        {currentRoute?.path && (
+        {currentRoute?.path && !routeError && (
           <div className="bg-slate-900 rounded p-3">
             <div className="font-semibold mb-2">Path</div>
             <ol className="list-decimal list-inside text-sm">

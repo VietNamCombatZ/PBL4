@@ -8,6 +8,8 @@ type State = {
   nodes: NodeInfo[]
   links: LinkInfo[]
   currentRoute?: RouteResult
+  routeError?: string
+  routeLoading?: boolean
   hoverNodeId?: number
   packetSessions: Record<string, PacketSession>
   fetchNodes: () => Promise<void>
@@ -26,6 +28,8 @@ let closeEvents: (() => void) | null = null
 export const useStore = create<State>((set, get) => ({
   nodes: [],
   links: [],
+  routeError: undefined,
+  routeLoading: false,
   packetSessions: {},
   async fetchNodes() {
     const n = await getNodes(); set({ nodes: n })
@@ -34,7 +38,17 @@ export const useStore = create<State>((set, get) => ({
     const l = await getLinks(); set({ links: l })
   },
   async findRoute(src, dst) {
-    const r = await postRoute(src, dst); set({ currentRoute: r })
+    set({ routeLoading: true, routeError: undefined })
+    try {
+      const r = await postRoute(src, dst)
+      set({ currentRoute: r, routeError: undefined })
+    } catch (e: any) {
+      // capture numeric status if thrown by api helper
+      const msg = e?.message === '422' ? 'No feasible path (disconnected components or disabled links).' : (e?.message || 'Route request failed')
+      set({ routeError: msg, currentRoute: undefined })
+    } finally {
+      set({ routeLoading: false })
+    }
   },
   async startPacket(src, dst, protocol) {
     // sendPacket may return the computed path from the server; prefer that so
