@@ -19,8 +19,9 @@ max_range_km:
   sat_sat: 5000
 elevation_min_deg: 10
 aco:
-  ants: 30
-  iters: 60
+  # Reduced for interactive responsiveness (was ants:30, iters:60)
+  ants: 18
+  iters: 35
   alpha: 1.0
   beta: 3.0
   rho: 0.2

@@ -69,6 +69,39 @@ def _broadcast(evt: dict) -> None:
             pass
 
 
+def _bfs_path(gs: GraphState, src: int, dst: int) -> list[int]:
+    """Unweighted shortest-path fallback using enabled edges only.
+    Returns a list of node ids from src to dst if reachable, else [].
+    """
+    from collections import deque
+    if src == dst:
+        return [src]
+    visited = {int(src)}
+    prev: dict[int, Optional[int]] = {int(src): None}
+    dq = deque([int(src)])
+    while dq:
+        u = dq.popleft()
+        for v in gs.adj.get(u, []):
+            idx = gs.edge_index.get((u, v))
+            if idx is None or not gs.links[idx].enabled:
+                continue
+            if v in visited:
+                continue
+            visited.add(v)
+            prev[v] = u
+            if v == dst:
+                # reconstruct
+                path: list[int] = []
+                cur = v
+                while cur is not None:
+                    path.append(cur)
+                    cur = prev.get(cur)
+                path.reverse()
+                return path
+            dq.append(v)
+    return []
+
+
 class RouteReq(BaseModel):
     src: int
     dst: int
@@ -86,6 +119,7 @@ class SendPacketReq(BaseModel):
     dst: int
     protocol: str = "UDP"
     message: Optional[str] = None
+    path: Optional[list[int]] = None  # optional precomputed path for TCP relay
 
 
 @app.get("/")
@@ -104,6 +138,7 @@ def root():
             "/config/reload",
             "/health",
             "/health/db",
+            "/tcp/test",
         ],
     }
 
@@ -222,7 +257,20 @@ def post_route(req: RouteReq):
             pass
         # Guard against NaN/Infinity to keep JSON RFC-compliant and signal infeasible routes
         if not path or not math.isfinite(cost):
-            raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
+            # Fallback to BFS on enabled edges for reachability
+            path = _bfs_path(STATE, int(req.src), int(req.dst))
+            if not path:
+                raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
+            # approximate cost as sum of per-edge objective from ACO costs when available
+            try:
+                from ..aco.objective import compute_edge_costs
+                costs = compute_edge_costs(STATE, weights)
+                acc = 0.0
+                for i in range(len(path) - 1):
+                    acc += float(costs.get((path[i], path[i+1]), 1.0))
+                cost = acc
+            except Exception:
+                cost = float('nan')
         # compute server-side metrics for apples-to-apples comparison
         try:
             latency_ms = metrics_lib.path_latency_ms_for_state(path, STATE.nodes)
@@ -290,13 +338,23 @@ def post_send_packet(req: SendPacketReq):
     with STATE_LOCK:
         if not STATE:
             raise HTTPException(500, "Graph not ready")
-        aco = ACO(STATE)
-        path, cost = aco.solve(req.src, req.dst)
+        # allow client-provided path (e.g., FE sends known path) else compute via ACO
+        if req.path and len(req.path) >= 2:
+            path = [int(x) for x in req.path]
+            cost = 0.0
+        else:
+            aco = ACO(STATE)
+            path, cost = aco.solve(req.src, req.dst)
         # capture links and edge_index snapshot for simulation thread to compute latencies
         links_snapshot = list(STATE.links)
         edge_index_snapshot = dict(STATE.edge_index)
-    if not path or not math.isfinite(cost):
-        raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
+    if not path or (not math.isfinite(cost) and not req.path):
+        # Try BFS fallback to keep UX stable when ACO misses a reachable path
+        with STATE_LOCK:
+            path = _bfs_path(STATE, int(req.src), int(req.dst))
+        if not path:
+            raise HTTPException(status_code=422, detail="No feasible path found for the given src/dst")
+        cost = 0.0
 
     session_id = str(uuid.uuid4())
     # precompute ACO metrics to return to the caller
@@ -354,8 +412,34 @@ def post_send_packet(req: SendPacketReq):
                 pass
             time.sleep(0.2)
 
+    # Start TCP relay across containers (real traffic), while SSE keeps UI updated
+    def _tcp_relay():
+        try:
+            import socket
+            TCP_PORT = int(os.environ.get("NODE_TCP_PORT", "9000"))
+            # open connection to first node in path
+            if len(path) >= 2:
+                first = int(path[0])
+                host = f"aco-sagsin-sim-node-{first}"
+                try:
+                    print(f"[tcp] connect first hop host={host} port={TCP_PORT}")
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(3.0)
+                    s.connect((host, TCP_PORT))
+                    payload = json.dumps({"sessionId": session_id, "path": path, "idx": 0, "message": req.message}).encode("utf-8")
+                    s.sendall(payload)
+                    s.close()
+                    print(f"[tcp] sent payload to {host}")
+                    # emit start event
+                    _broadcast({"type":"packet-progress","status":"pending","sessionId":session_id,"nodeId":first,"cumulativeLatencyMs":0.0,"message": req.message})
+                except Exception as e:
+                    print(f"[tcp] first hop connect failed to {host}:{TCP_PORT} err={e}")
+        except Exception:
+            pass
+
     threading.Thread(target=_simulate, daemon=True).start()
-    return {"sessionId": session_id, "path": path, "cost": float(cost), "latency_ms": computed_latency_ms, "throughput_mbps": computed_throughput_mbps}
+    threading.Thread(target=_tcp_relay, daemon=True).start()
+    return {"sessionId": session_id, "path": path, "cost": float(cost) if math.isfinite(cost) else None, "latency_ms": computed_latency_ms, "throughput_mbps": computed_throughput_mbps}
 
 
 @app.get("/events")
@@ -375,3 +459,20 @@ def get_events():
             _unsubscribe(q)
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
+
+
+@app.get("/tcp/test")
+def tcp_test(node_id: int, port: int = 9000):
+    """Connectivity check: try to open a TCP connection to a node container by id.
+    Returns success or error details to help diagnose DNS/network issues.
+    """
+    host = f"aco-sagsin-sim-node-{int(node_id)}"
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(2.0)
+        s.connect((host, int(port)))
+        s.close()
+        return {"ok": True, "host": host, "port": int(port)}
+    except Exception as e:
+        return {"ok": False, "host": host, "port": int(port), "error": str(e)}

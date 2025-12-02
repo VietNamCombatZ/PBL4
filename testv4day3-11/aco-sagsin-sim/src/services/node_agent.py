@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ..logging_setup import setup_logging
 import threading
+import socket
 import urllib.request
 import time as _time
 from typing import Any
@@ -35,6 +36,54 @@ def main() -> None:
         return
     nm = node.get('name') or f"{node.get('kind','node')}-{node.get('id','?')}"
     print(f"Node agent started for node id={node.get('id')} kind={node.get('kind')} name={nm}")
+    TCP_PORT = int(os.getenv("NODE_TCP_PORT", "9000"))
+
+    # minimal TCP server: accepts a JSON payload and logs/forwards if instructed
+    def _tcp_server():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("0.0.0.0", TCP_PORT))
+        s.listen(16)
+        print(f"[node-{node.get('id')}] TCP server listening on :{TCP_PORT}")
+        while True:
+            try:
+                conn, addr = s.accept()
+                data = b""
+                conn.settimeout(5.0)
+                while True:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                try:
+                    msg = json.loads(data.decode("utf-8", errors="ignore"))
+                except Exception:
+                    msg = {}
+                # basic fields: sessionId, path, idx, message
+                sid = msg.get("sessionId")
+                path = msg.get("path") or []
+                cur_i = int(msg.get("idx", 0))
+                payload = msg.get("message")
+                print(f"[node-{node.get('id')}] TCP recv sid={sid} idx={cur_i} msg={bool(payload)}")
+                # forward to next hop if any
+                nxt_i = cur_i + 1
+                if isinstance(path, list) and nxt_i < len(path):
+                    next_node_id = int(path[nxt_i])
+                    # compose container name on default network
+                    host = f"aco-sagsin-sim-node-{next_node_id}"
+                    try:
+                        fwd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        fwd.settimeout(3.0)
+                        fwd.connect((host, TCP_PORT))
+                        fwd_payload = json.dumps({"sessionId": sid, "path": path, "idx": nxt_i, "message": payload}).encode("utf-8")
+                        fwd.sendall(fwd_payload)
+                        fwd.close()
+                        print(f"[node-{node.get('id')}] forwarded to {host}")
+                    except Exception as e:
+                        print(f"[node-{node.get('id')}] forward failed to {host}: {e}")
+                conn.close()
+            except Exception:
+                time.sleep(0.2)
     # simple heartbeat
     # start a background thread to listen for packet events from controller SSE
     def _listen_events():
@@ -75,12 +124,13 @@ def main() -> None:
                 _time.sleep(backoff)
                 backoff = min(backoff * 2, 30)
 
-    th = threading.Thread(target=_listen_events, daemon=True)
-    th.start()
+    threading.Thread(target=_listen_events, daemon=True).start()
+    threading.Thread(target=_tcp_server, daemon=True).start()
 
+    hb = int(os.getenv("HEARTBEAT_SEC", "30"))
     while True:
         print(f"agent idx={idx} alive")
-        time.sleep(30)
+        time.sleep(hb)
 
 
 if __name__ == "__main__":
