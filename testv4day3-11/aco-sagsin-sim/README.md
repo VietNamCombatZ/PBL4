@@ -67,11 +67,27 @@ NODES=600 make up
 
 Start (detached, direct Docker Compose alternative):
 
+start controller
 ```bash
 # build and run detached, scaling node service
 # docker compose up -d --build --scale node=10
 # docker compose up -d --build controller
 docker compose up -d  controller
+
+```
+
+start node agent
+```bash
+# recommended: scale in bulk with lower parallelism to avoid daemon flakiness
+FORCE_DERIVED_INDEX=true COMPOSE_PARALLEL_LIMIT=5 docker compose up -d --scale node=200
+
+# if you see "FORCE_DERIVED_INDEX ... could not derive" on some replicas,
+# either rerun (reverse DNS may take a moment) or temporarily relax strict mode:
+# FORCE_DERIVED_INDEX=false COMPOSE_PARALLEL_LIMIT=5 docker compose up -d --no-recreate --scale node=200
+
+# note: strict derivation is most reliable if the Docker socket is mounted read-only
+# (already configured in docker-compose.yml for the node service):
+#   - /var/run/docker.sock:/var/run/docker.sock:ro
 ```
 
 Stop the stack (keep volumes/cache):

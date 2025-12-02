@@ -33,13 +33,23 @@ services:
       - controller
     environment:
       - PYTHONUNBUFFERED=1
+      # Strictly derive NODE_INDEX from container name; exit if not derivable
+      - FORCE_DERIVED_INDEX=true
       - NODE_INDEX
     command: ["python", "-m", "src.services.node_agent"]
     volumes:
       - ./data/generated:/app/data/generated
       - ./data/node_assignments:/var/lib/aco/node_assignments
+      # optional: mount docker socket read-only to allow strict index derivation via container metadata
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     deploy:
       replicas: ${NODES:-50}
+    healthcheck:
+      # Healthy only if NODE_INDEX is present (set by entrypoint). If derivation fails (strict), container exits.
+      test: ["CMD", "python", "-c", "import os,sys; i=os.environ.get('NODE_INDEX'); sys.exit(0 if i and i.isdigit() else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
 
   ui:
     image: aco-sagsin-sim:latest
