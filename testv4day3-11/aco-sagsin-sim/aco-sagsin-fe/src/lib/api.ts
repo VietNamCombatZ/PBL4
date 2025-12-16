@@ -52,3 +52,7 @@ export async function openEvents(onEvent: (e: PacketEvent) => void): Promise<() 
   })
   return () => es.close()
 }
+
+export const getSpeed = async (): Promise<{ multiplier: number }> => j(await fetch(`${BASE}/simulate/get-speed`))
+export const setSpeed = async (multiplier: number): Promise<{ ok: boolean; multiplier: number }> =>
+  j(await fetch(`${BASE}/simulate/set-speed`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ multiplier }) }))

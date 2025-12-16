@@ -3,14 +3,28 @@ import type { PacketStatus } from '../lib/types'
 import { useStore } from '../lib/store'
 import Globe3D from '../components/Globe3D/Globe3D'
 import { fmtMs } from '../utils'
+import { getSpeed, setSpeed } from '../lib/api'
 
 export default function PacketPage() {
-  const { nodes, fetchNodes, currentRoute, findRoute, packetSessions, startPacket, hoverNodeId, setHoverNode, clearSession } = useStore()
+  const { nodes, fetchNodes, currentRoute, findRoute, packetSessions, startPacket, hoverNodeId, setHoverNode, clearSession, startNodeMotionPolling } = useStore()
   const [src, setSrc] = useState<number | ''>('')
   const [dst, setDst] = useState<number | ''>('')
   const [protocol, setProtocol] = useState<'TCP'|'UDP'>('TCP')
   const [sessionId, setSessionId] = useState<string>('')
   useEffect(() => { fetchNodes() }, [fetchNodes])
+  // start/stop motion and reset speed per page
+  useEffect(() => {
+    setSpeed(1).catch(()=>{})
+    const stop = startNodeMotionPolling?.(1000)
+    return () => { if (stop) stop() }
+  }, [startNodeMotionPolling])
+  // local speed control
+  const [mult, setMult] = useState<number>(1)
+  useEffect(() => { getSpeed().then(s => setMult(s.multiplier)).catch(()=>{}) }, [])
+  const cycleSpeed = async () => {
+    const next = mult === 1 ? 10 : mult === 10 ? 100 : 1
+    try { const res = await setSpeed(next); if (res.ok) setMult(res.multiplier) } catch {}
+  }
 
   // ensure we subscribe to controller SSE on page mount so events originating
   // outside the UI (host curl / other containers) are received and populate
@@ -71,6 +85,9 @@ export default function PacketPage() {
   return (
     <div className="grid grid-cols-3 gap-4">
       <div className="col-span-1 space-y-3">
+        <div className="flex justify-end">
+          <button onClick={cycleSpeed} className="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">{mult === 1 ? '▶︎ 1x' : mult === 10 ? '⏩ 10x' : '⏭ 100x'}</button>
+        </div>
         {/* Session history: pick older sessions created either by UI or external sends */}
         <div className="bg-slate-900 rounded p-3">
           <div className="font-semibold mb-2">Session History</div>

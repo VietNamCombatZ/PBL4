@@ -10,6 +10,7 @@ export default function Navbar() {
         <Link className={active('/data')} to="/data">Data</Link>
         <Link className={active('/route')} to="/route">Route</Link>
         <Link className={active('/packet')} to="/packet">Packet</Link>
+        <div className="ml-auto" />
       </div>
     </nav>
   )

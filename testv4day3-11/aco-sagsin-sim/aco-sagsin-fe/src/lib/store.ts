@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { NodeInfo, LinkInfo, RouteResult, PacketEvent, PacketStatus } from './types'
 import { getNodes, getLinks, postRoute, sendPacket, openEvents } from './api'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080'
 
 type PacketSession = { path: number[]; updates: Record<number, PacketStatus>; cumulative_latency_ms?: number; perHopLatency?: Record<number, number>; messages?: Record<number, string>; created_at?: number }
 
@@ -21,6 +22,7 @@ type State = {
   setHoverNode: (id?: number) => void
   clearRoute: () => void
   ensureEventStream: () => void
+  startNodeMotionPolling?: (intervalMs?: number) => () => void
 }
 
 let closeEvents: (() => void) | null = null
@@ -104,4 +106,27 @@ export const useStore = create<State>((set, get) => ({
   },
   setHoverNode(id) { set({ hoverNodeId: id }) },
   clearRoute() { set({ currentRoute: undefined }) },
+  startNodeMotionPolling(intervalMs = 1000) {
+    let timer: any
+    const tick = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/nodes/positions`)
+        if (!res.ok) throw new Error('positions fetch failed')
+        const pos: Array<{ id: number; lat: number; lon: number; alt_km?: number }> = await res.json()
+        const map = new Map(pos.map(p => [p.id, p]))
+        set(state => ({
+          nodes: state.nodes.map(n => {
+            const p = map.get(n.id)
+            return p ? { ...n, lat: p.lat, lon: p.lon } : n
+          })
+        }))
+      } catch (_) {
+        // ignore transient errors
+      } finally {
+        timer = setTimeout(tick, intervalMs)
+      }
+    }
+    tick()
+    return () => clearTimeout(timer)
+  },
 }))

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import Globe3D from '../components/Globe3D/Globe3D'
 import { fmtMbps, fmtMs } from '../utils'
+import { getSpeed, setSpeed } from '../lib/api'
 import metrics from '../lib/metrics'
 
 export default function RoutePage() {
-  const { nodes, fetchNodes, links, fetchLinks, currentRoute, findRoute, hoverNodeId, setHoverNode, routeError, routeLoading } = useStore()
+  const { nodes, fetchNodes, links, fetchLinks, currentRoute, findRoute, hoverNodeId, setHoverNode, routeError, routeLoading, startNodeMotionPolling } = useStore()
   const [src, setSrc] = useState<number | ''>('')
   const [dst, setDst] = useState<number | ''>('')
   const [rwrPath, setRwrPath] = useState<number[] | undefined>(undefined)
@@ -13,6 +14,20 @@ export default function RoutePage() {
   const [showRWR, setShowRWR] = useState(true)
   useEffect(() => { fetchNodes() }, [fetchNodes])
   useEffect(() => { fetchLinks() }, [fetchLinks])
+  // Start dynamic motion polling (sat/air/sea positions) on mount
+  useEffect(() => {
+    // Reset speed to 1x on page enter
+    setSpeed(1).catch(()=>{})
+    const stop = startNodeMotionPolling?.(1000)
+    return () => { if (stop) stop() }
+  }, [startNodeMotionPolling])
+  // Local speed control
+  const [mult, setMult] = useState<number>(1)
+  useEffect(() => { getSpeed().then(s => setMult(s.multiplier)).catch(()=>{}) }, [])
+  const cycleSpeed = async () => {
+    const next = mult === 1 ? 10 : mult === 10 ? 100 : 1
+    try { const res = await setSpeed(next); if (res.ok) setMult(res.multiplier) } catch {}
+  }
 
   // Random Walk with Restart baseline: try many random walks and return the
   // shortest successful path found. restartProb in [0,1], attempts controls how
@@ -103,6 +118,11 @@ export default function RoutePage() {
       <div className="col-span-1 space-y-3">
         <div className="bg-slate-900 rounded p-3">
           <div className="font-semibold mb-2">Chọn nguồn/đích</div>
+            <div className="flex justify-end mb-2">
+              <button onClick={cycleSpeed} className="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">
+                {mult === 1 ? '▶︎ 1x' : mult === 10 ? '⏩ 10x' : '⏭ 100x'}
+              </button>
+            </div>
           <select className="bg-slate-800 rounded px-2 py-1 w-full mb-2" value={src} onChange={e=>setSrc(Number(e.target.value))}>
             <option value="">Chọn src</option>
             {nodes.map(n=> <option key={n.id} value={n.id}>{n.id} - {n.name}</option>)}
