@@ -20,5 +20,14 @@ export function nodeColor(kind: NodeKind, status?: PacketStatus): string {
   }
 }
 
-export const fmtMs = (v?: number) => (v == null ? '-' : `${v.toFixed(1)} ms`)
-export const fmtMbps = (v?: number) => (v == null ? '-' : `${v.toFixed(2)} Mbps`)
+export const fmtMs = (v?: number) => (v == null || !isFinite(v) ? '-' : `${v.toFixed(1)} ms`)
+export const fmtMbps = (v?: number) => {
+  if (v == null || !isFinite(v)) return '-'
+  if (v >= 1) return `${v.toFixed(2)} Mbps`
+  const kbps = v * 1000
+  if (kbps >= 1) return `${kbps.toFixed(2)} Kbps`
+  const bps = v * 1_000_000
+  // show a few decimals for very small values
+  const precision = bps < 10 ? 3 : bps < 100 ? 2 : 0
+  return `${bps.toFixed(precision)} bps`
+}
