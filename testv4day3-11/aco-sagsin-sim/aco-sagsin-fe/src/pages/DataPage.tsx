@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../lib/store'
 import Globe3D from '../components/Globe3D/Globe3D'
 import { getSpeed, setSpeed } from '../lib/api'
@@ -12,8 +12,9 @@ export default function DataPage() {
   useEffect(() => {
     setSpeed(1).catch(()=>{})
     const stop = startNodeMotionPolling?.(1000)
+    stopRef.current = stop || null
     return () => {
-      if (stop) stop()
+      if (stopRef.current) stopRef.current()
       setSpeed(1).catch(()=>{})
       fetchNodes().catch(()=>{})
     }
@@ -25,6 +26,19 @@ export default function DataPage() {
     const next = mult === 1 ? 10 : mult === 10 ? 100 : 1
     try { const res = await setSpeed(next); if (res.ok) setMult(res.multiplier) } catch {}
   }
+  // Pause/Play motion per-page
+  const [paused, setPaused] = useState<boolean>(false)
+  const stopRef = useRef<(() => void) | null>(null)
+  const togglePause = () => {
+    if (!paused) {
+      if (stopRef.current) stopRef.current()
+      setPaused(true)
+    } else {
+      const stop = startNodeMotionPolling?.(1000)
+      stopRef.current = stop || null
+      setPaused(false)
+    }
+  }
   const filtered = useMemo(() => nodes.filter(n => (kind==='all'||n.kind===kind) && (`${n.id}`.includes(q) || n.name.toLowerCase().includes(q.toLowerCase()))), [nodes, kind, q])
   const counts = useMemo(() => nodes.reduce<Record<string,number>>((a,n)=>{a[n.kind]=(a[n.kind]||0)+1;return a},{}) , [nodes])
   const hoverNode = nodes.find(n => n.id === hoverNodeId)
@@ -35,6 +49,7 @@ export default function DataPage() {
       <div className="col-span-2">
         <div className="flex items-center gap-2 mb-2">
           <button onClick={cycleSpeed} className="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">{mult === 1 ? '▶︎ 1x' : mult === 10 ? '⏩ 10x' : '⏭ 100x'}</button>
+          <button onClick={togglePause} className="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">{paused ? '⏵ Play' : '⏸ Pause'}</button>
           <input className="bg-slate-800 rounded px-2 py-1" placeholder="Tìm theo id/name" value={q} onChange={e=>setQ(e.target.value)} />
           <select className="bg-slate-800 rounded px-2 py-1" value={kind} onChange={e=>setKind(e.target.value)}>
             <option value="all">All</option><option value="ground">ground</option><option value="air">air</option><option value="sea">sea</option><option value="sat">sat</option>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PacketStatus } from '../lib/types'
 import { useStore } from '../lib/store'
 import Globe3D from '../components/Globe3D/Globe3D'
@@ -16,8 +16,9 @@ export default function PacketPage() {
   useEffect(() => {
     setSpeed(1).catch(()=>{})
     const stop = startNodeMotionPolling?.(1000)
+    stopRef.current = stop || null
     return () => {
-      if (stop) stop()
+      if (stopRef.current) stopRef.current()
       setSpeed(1).catch(()=>{})
       fetchNodes().catch(()=>{})
     }
@@ -28,6 +29,19 @@ export default function PacketPage() {
   const cycleSpeed = async () => {
     const next = mult === 1 ? 10 : mult === 10 ? 100 : 1
     try { const res = await setSpeed(next); if (res.ok) setMult(res.multiplier) } catch {}
+  }
+  // Pause/Play motion per-page
+  const [paused, setPaused] = useState<boolean>(false)
+  const stopRef = useRef<(() => void) | null>(null)
+  const togglePause = () => {
+    if (!paused) {
+      if (stopRef.current) stopRef.current()
+      setPaused(true)
+    } else {
+      const stop = startNodeMotionPolling?.(1000)
+      stopRef.current = stop || null
+      setPaused(false)
+    }
   }
 
   // ensure we subscribe to controller SSE on page mount so events originating
@@ -91,6 +105,7 @@ export default function PacketPage() {
       <div className="col-span-1 space-y-3">
         <div className="flex justify-end">
           <button onClick={cycleSpeed} className="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">{mult === 1 ? '▶︎ 1x' : mult === 10 ? '⏩ 10x' : '⏭ 100x'}</button>
+          <button onClick={togglePause} className="ml-2 bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded">{paused ? '⏵ Play' : '⏸ Pause'}</button>
         </div>
         {/* Session history: pick older sessions created either by UI or external sends */}
         <div className="bg-slate-900 rounded p-3">
