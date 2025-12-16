@@ -35,7 +35,7 @@ export default function RoutePage() {
     try { const res = await setSpeed(next); if (res.ok) setMult(res.multiplier) } catch {}
   }
   // Pause/Play motion per-page
-  const [paused, setPaused] = useState<boolean>(false)
+  const [paused, setPaused] = useState<boolean>(true)
   const stopRef = useRef<(() => void) | null>(null)
   const togglePause = () => {
     if (!paused) {
