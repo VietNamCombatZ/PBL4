@@ -12,7 +12,11 @@ export default function DataPage() {
   useEffect(() => {
     setSpeed(1).catch(()=>{})
     const stop = startNodeMotionPolling?.(1000)
-    return () => { if (stop) stop() }
+    return () => {
+      if (stop) stop()
+      setSpeed(1).catch(()=>{})
+      fetchNodes().catch(()=>{})
+    }
   }, [startNodeMotionPolling])
   // local speed control
   const [mult, setMult] = useState<number>(1)

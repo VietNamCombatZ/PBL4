@@ -19,7 +19,12 @@ export default function RoutePage() {
     // Reset speed to 1x on page enter
     setSpeed(1).catch(()=>{})
     const stop = startNodeMotionPolling?.(1000)
-    return () => { if (stop) stop() }
+    return () => {
+      // stop motion polling and hard reset positions and speed on leave
+      if (stop) stop()
+      setSpeed(1).catch(()=>{})
+      fetchNodes().catch(()=>{})
+    }
   }, [startNodeMotionPolling])
   // Local speed control
   const [mult, setMult] = useState<number>(1)
