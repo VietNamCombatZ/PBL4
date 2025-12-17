@@ -7,7 +7,7 @@ import { getSpeed, setSpeed } from '../lib/api'
 
 export default function PacketPage() {
   const { nodes, fetchNodes, currentRoute, findRoute, packetSessions, startPacket, hoverNodeId, setHoverNode, clearSession, startNodeMotionPolling } = useStore()
-  const [paused, setPaused] = useState<boolean>(false)
+  const [paused, setPaused] = useState<boolean>(true)
   const stopRef = useRef<(() => void) | null>(null)
   const [frozenPos, setFrozenPos] = useState<Map<number, {lat:number; lon:number}>>(new Map())
   const [src, setSrc] = useState<number | ''>('')
@@ -15,17 +15,19 @@ export default function PacketPage() {
   const [protocol, setProtocol] = useState<'TCP'|'UDP'>('TCP')
   const [sessionId, setSessionId] = useState<string>('')
   useEffect(() => { fetchNodes() }, [fetchNodes])
-  // start/stop motion and reset speed per page
+  // start/stop motion and reset speed per page (do not start if paused)
   useEffect(() => {
     setSpeed(1).catch(()=>{})
-    const stop = startNodeMotionPolling?.(1000)
-    stopRef.current = stop || null
+    if (!paused) {
+      const stop = startNodeMotionPolling?.(1000)
+      stopRef.current = stop || null
+    }
     return () => {
       if (stopRef.current) stopRef.current()
       setSpeed(1).catch(()=>{})
       fetchNodes().catch(()=>{})
     }
-  }, [startNodeMotionPolling])
+  }, [startNodeMotionPolling, paused])
   // local speed control
   const [mult, setMult] = useState<number>(1)
   useEffect(() => { getSpeed().then(s => setMult(s.multiplier)).catch(()=>{}) }, [])
@@ -48,6 +50,15 @@ export default function PacketPage() {
       setPaused(false)
     }
   }
+
+  // When paused, snapshot current positions to keep arcs stable
+  useEffect(() => {
+    if (paused) {
+      const m = new Map<number, {lat:number; lon:number}>()
+      nodes.forEach(n => m.set(n.id, { lat: n.lat, lon: n.lon }))
+      setFrozenPos(m)
+    }
+  }, [paused, nodes])
 
   // ensure we subscribe to controller SSE on page mount so events originating
   // outside the UI (host curl / other containers) are received and populate

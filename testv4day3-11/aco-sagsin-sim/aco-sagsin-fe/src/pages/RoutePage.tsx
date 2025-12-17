@@ -12,24 +12,26 @@ export default function RoutePage() {
   const [rwrPath, setRwrPath] = useState<number[] | undefined>(undefined)
   const [showACO, setShowACO] = useState(true)
   const [showRWR, setShowRWR] = useState(true)
-  const [paused, setPaused] = useState<boolean>(false)
+  const [paused, setPaused] = useState<boolean>(true)
   const stopRef = useRef<(() => void) | null>(null)
   const [frozenPos, setFrozenPos] = useState<Map<number, {lat:number; lon:number}>>(new Map())
   useEffect(() => { fetchNodes() }, [fetchNodes])
   useEffect(() => { fetchLinks() }, [fetchLinks])
-  // Start dynamic motion polling (sat/air/sea positions) on mount
+  // Start dynamic motion polling (sat/air/sea positions) on mount if not paused
   useEffect(() => {
     // Reset speed to 1x on page enter
     setSpeed(1).catch(()=>{})
-    const stop = startNodeMotionPolling?.(1000)
-    stopRef.current = stop || null
+    if (!paused) {
+      const stop = startNodeMotionPolling?.(1000)
+      stopRef.current = stop || null
+    }
     return () => {
       // stop motion polling and hard reset positions and speed on leave
       if (stopRef.current) stopRef.current()
       setSpeed(1).catch(()=>{})
       fetchNodes().catch(()=>{})
     }
-  }, [startNodeMotionPolling])
+  }, [startNodeMotionPolling, paused])
   // Local speed control
   const [mult, setMult] = useState<number>(1)
   useEffect(() => { getSpeed().then(s => setMult(s.multiplier)).catch(()=>{}) }, [])
@@ -52,6 +54,15 @@ export default function RoutePage() {
       setPaused(false)
     }
   }
+
+  // When paused, keep a snapshot of positions so arcs remain stable.
+  useEffect(() => {
+    if (paused) {
+      const m = new Map<number, {lat:number; lon:number}>()
+      nodes.forEach(n => m.set(n.id, { lat: n.lat, lon: n.lon }))
+      setFrozenPos(m)
+    }
+  }, [paused, nodes])
 
   // Random Walk with Restart baseline: try many random walks and return the
   // shortest successful path found. restartProb in [0,1], attempts controls how
