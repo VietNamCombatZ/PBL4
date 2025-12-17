@@ -39,6 +39,7 @@ STATE_LOCK = threading.Lock()
 STATE: Optional[GraphState] = None
 CFG: Optional[Config] = None
 NODES_PATH = Path("data/generated/nodes.json")
+SPEED_MULTIPLIER: float = 1.0
 
 # In-memory SSE broadcaster for packet progress events
 SUBSCRIBERS: list[queue.Queue[str]] = []
@@ -235,6 +236,58 @@ def get_links():
         if not STATE:
             return []
         return [l.__dict__ for l in STATE.links]
+
+
+@app.get("/nodes/positions")
+def nodes_positions():
+    """Return dynamic positions for moving kinds (sat, air, sea) with simple drift.
+    Longitudes drift over time; latitudes apply small jitter for air/sea.
+    """
+    import math
+    now = time.time()
+    with STATE_LOCK:
+        if not STATE:
+            return []
+        # movement parameters (can later be driven by config.yaml)
+        kinds_move = {"sat", "air", "sea"}
+        deg_per_sec = {"sat": 0.15, "air": 0.02, "sea": 0.005}
+        jitter_km = {"air": 1.0, "sea": 0.2, "sat": 0.0}
+        out = []
+        for n in STATE.nodes:
+            lat = float(n.lat)
+            lon = float(n.lon)
+            if n.kind in kinds_move:
+                dps = float(deg_per_sec.get(n.kind, 0.0))
+                # drift longitude, wrap [-180,180]
+                lon = ((lon + dps * now * SPEED_MULTIPLIER + 180.0) % 360.0) - 180.0
+                jk = float(jitter_km.get(n.kind, 0.0))
+                if jk > 0:
+                    # ~1 deg ~ 111km
+                    lat = max(-90.0, min(90.0, lat + (math.sin((now * SPEED_MULTIPLIER) / 17.0 + n.id) * jk) / 111.0))
+            out.append({"id": int(n.id), "lat": lat, "lon": lon, "alt_km": float(n.alt_m) / 1000.0})
+        return out
+
+
+@app.get("/simulate/get-speed")
+def get_speed():
+    return {"multiplier": SPEED_MULTIPLIER}
+
+
+class SpeedReq(BaseModel):
+    multiplier: float
+
+
+@app.post("/simulate/set-speed")
+def set_speed(req: SpeedReq):
+    global SPEED_MULTIPLIER
+    try:
+        m = float(req.multiplier)
+        if m <= 0:
+            raise ValueError("multiplier must be > 0")
+        SPEED_MULTIPLIER = m
+        return {"ok": True, "multiplier": SPEED_MULTIPLIER}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/route")

@@ -108,11 +108,14 @@ export const useStore = create<State>((set, get) => ({
   clearRoute() { set({ currentRoute: undefined }) },
   startNodeMotionPolling(intervalMs = 1000) {
     let timer: any
+    let aborted = false
     const tick = async () => {
+      if (aborted) return
       try {
         const res = await fetch(`${API_BASE}/nodes/positions`)
         if (!res.ok) throw new Error('positions fetch failed')
         const pos: Array<{ id: number; lat: number; lon: number; alt_km?: number }> = await res.json()
+        if (aborted) return
         const map = new Map(pos.map(p => [p.id, p]))
         set(state => ({
           nodes: state.nodes.map(n => {
@@ -123,10 +126,10 @@ export const useStore = create<State>((set, get) => ({
       } catch (_) {
         // ignore transient errors
       } finally {
-        timer = setTimeout(tick, intervalMs)
+        if (!aborted) timer = setTimeout(tick, intervalMs)
       }
     }
     tick()
-    return () => clearTimeout(timer)
+    return () => { aborted = true; if (timer) clearTimeout(timer) }
   },
 }))

@@ -17,7 +17,7 @@ max_range_km:
   ground_sat: 2000
   air_sat: 2500
   sat_sat: 5000
-elevation_min_deg: 10
+elevation_min_deg: 5
 aco:
   # Reduced for interactive responsiveness (was ants:30, iters:60)
   ants: 18
@@ -33,10 +33,10 @@ aco:
   tau_max: 2.0
   weights: [0.5, 0.2, 0.2, 0.1]
 link_model:
-  freq_hz: 2.4e9
-  bw_hz: 20e6
-  p_tx_dbm: 20
-  noise_dbm: -100
+  freq_hz: 9.0e8
+  bw_hz: 10e6
+  p_tx_dbm: 30
+  noise_dbm: -95
   proc_queue_ms: 2
 
 # Optional selection controls
