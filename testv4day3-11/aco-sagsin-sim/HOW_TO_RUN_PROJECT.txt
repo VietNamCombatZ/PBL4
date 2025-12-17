@@ -1,0 +1,58 @@
+- B1: Bật docker lên
+- B2: mở terminal ở thư mục ACO-SAGSIN-SIM
+- B3: chạy lệnh sau để khởi tạo ACO-SAGSIN-SIM image:
+```
+docker compose build --no-cache
+```
+- B4: Chạy lệnh sau để build container cho controller và mongodb:
+```
+docker compose up -d mongo controller
+```
+- B5: chạy lệnh sau để kéo dữ liệu về:
+```
+make seed
+```
+- B6: chạy lệnh sau để kiểm tra tình trạng container:
+```
+curl -s -X POST http://localhost:8080/config/reload | jq .
+```
+nếu trả về như dưới đây là ok:
+{
+  "ok": true
+}
+
+- B7: chạy lệnh sau để kiểm tra trong mongoDB đã có dữ liệu bao nhiêu node (ví dụ 200 thì sẽ in ra 200):
+```
+docker compose exec -T mongo mongosh --quiet --eval 'var d=db.getSiblingDB("aco").nodes.findOne({_id:"nodes"}); d ? d.payload.length : 0'
+```
+
+-B8: chạy lần lượt các lệnh sau để khởi tạo container cho 200 node (nếu máy mạnh và có >20GB RAM trống, có thể thay "compose create" trong lệnh thành "compose up -d"):
+```
+FORCE_DERIVED_INDEX=true
+COMPOSE_PARALLEL_LIMIT=3 docker compose create --scale node=50
+COMPOSE_PARALLEL_LIMIT=3 docker compose create --scale node=100
+COMPOSE_PARALLEL_LIMIT=3 docker compose create --scale node=150
+COMPOSE_PARALLEL_LIMIT=3 docker compose create --scale node=200
+
+```
+
+-B9: Chạy lần lượt các lệnh sau để chạy BE
+```
+cd aco-sagsin-fe
+npm i (yêu cầu máy cài sẵn nodejs + npm)
+npm run dev
+
+```
+
+- B10: Truy cập vào đường dẫn http://localhost:5173 để sử dụng 
+
+* Lưu ý (sử dụng khi máy yếu, không đủ RAM để chạy toàn bộ 200 container cùng 1 lúc):
+- Nếu muốn khởi chạy container node để mô phỏng việc gửi gói tin, 
+trước tiên cần chạy mô phỏng trước ở PacketPage để biết trên route có các node với id nào, 
+sau đó vào docker desktop  -> containers -> nhập node-id ứng với id của các node trong route (ví dụ node-48),
+sau đó ở cột Action, bấm nút Start để bật node, cứ như vậy cho toàn bộ các node trong route để mô phỏng
+
+- Nếu máy đủ RAM để chạy 200 container 1 lúc, chạy lệnh::
+```
+docker compose up -d --no-recreate
+```
