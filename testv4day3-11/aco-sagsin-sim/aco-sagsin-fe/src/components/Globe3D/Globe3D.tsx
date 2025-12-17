@@ -5,6 +5,7 @@ import type { NodeInfo, PacketStatus } from '../../lib/types'
 import { altitudeOffset, nodeColor } from '../../utils'
 
 type Arc = { startLat: number; startLng: number; endLat: number; endLng: number; color?: string }
+type ArcWithAlt = Arc & { startAlt?: number; endAlt?: number }
 
 export default function Globe3D({ nodes, arcs, hoverNodeId, onHoverNode, statusByNode }: {
   nodes: NodeInfo[]
@@ -29,7 +30,10 @@ export default function Globe3D({ nodes, arcs, hoverNodeId, onHoverNode, statusB
   // attach altitude to arcs so they connect to elevated objects (sat/air) instead of the globe surface
   const processedArcs = useMemo(() => {
     if (!arcs || !arcs.length) return [] as any[]
-    return arcs.map(a => {
+    return (arcs as ArcWithAlt[]).map(a => {
+      if (a.startAlt != null || a.endAlt != null) {
+        return a
+      }
       const startNode = nodes.find(n => n.lat === a.startLat && n.lon === a.startLng)
       const endNode = nodes.find(n => n.lat === a.endLat && n.lon === a.endLng)
       const startAlt = startNode ? altitudeOffset(startNode.lat, startNode.lon, startNode.alt_m, startNode.kind) : 0

@@ -12,6 +12,9 @@ export default function RoutePage() {
   const [rwrPath, setRwrPath] = useState<number[] | undefined>(undefined)
   const [showACO, setShowACO] = useState(true)
   const [showRWR, setShowRWR] = useState(true)
+  const [paused, setPaused] = useState<boolean>(false)
+  const stopRef = useRef<(() => void) | null>(null)
+  const [frozenPos, setFrozenPos] = useState<Map<number, {lat:number; lon:number}>>(new Map())
   useEffect(() => { fetchNodes() }, [fetchNodes])
   useEffect(() => { fetchLinks() }, [fetchLinks])
   // Start dynamic motion polling (sat/air/sea positions) on mount
@@ -34,16 +37,18 @@ export default function RoutePage() {
     const next = mult === 1 ? 10 : mult === 10 ? 100 : 1
     try { const res = await setSpeed(next); if (res.ok) setMult(res.multiplier) } catch {}
   }
-  // Pause/Play motion per-page
-  const [paused, setPaused] = useState<boolean>(true)
-  const stopRef = useRef<(() => void) | null>(null)
   const togglePause = () => {
     if (!paused) {
       if (stopRef.current) stopRef.current()
+      // snapshot current positions
+      const m = new Map<number, {lat:number; lon:number}>()
+      nodes.forEach(n => m.set(n.id, { lat: n.lat, lon: n.lon }))
+      setFrozenPos(m)
       setPaused(true)
     } else {
       const stop = startNodeMotionPolling?.(1000)
       stopRef.current = stop || null
+      setFrozenPos(new Map())
       setPaused(false)
     }
   }
@@ -94,20 +99,28 @@ export default function RoutePage() {
     const list: any[] = []
     if (showACO && currentRoute?.path?.length) {
       for (let i=0;i<currentRoute.path.length-1;i++){
-        const a = nodes.find(n=>n.id===currentRoute.path[i])
-        const b = nodes.find(n=>n.id===currentRoute.path[i+1])
-        if (a&&b) list.push({ startLat:a.lat, startLng:a.lon, endLat:b.lat, endLng:b.lon, color: '#38bdf8' })
+        const aN = nodes.find(n=>n.id===currentRoute.path[i])
+        const bN = nodes.find(n=>n.id===currentRoute.path[i+1])
+        if (aN&&bN) {
+          const aPos = paused ? (frozenPos.get(aN.id) ?? { lat: aN.lat, lon: aN.lon }) : { lat: aN.lat, lon: aN.lon }
+          const bPos = paused ? (frozenPos.get(bN.id) ?? { lat: bN.lat, lon: bN.lon }) : { lat: bN.lat, lon: bN.lon }
+          list.push({ startLat:aPos.lat, startLng:aPos.lon, endLat:bPos.lat, endLng:bPos.lon, color: '#38bdf8' })
+        }
       }
     }
     if (showRWR && rwrPath && rwrPath.length) {
       for (let i=0;i<rwrPath.length-1;i++){
-        const a = nodes.find(n=>n.id===rwrPath[i])
-        const b = nodes.find(n=>n.id===rwrPath[i+1])
-        if (a&&b) list.push({ startLat:a.lat, startLng:a.lon, endLat:b.lat, endLng:b.lon, color: '#f97316' })
+        const aN = nodes.find(n=>n.id===rwrPath[i])
+        const bN = nodes.find(n=>n.id===rwrPath[i+1])
+        if (aN&&bN) {
+          const aPos = paused ? (frozenPos.get(aN.id) ?? { lat: aN.lat, lon: aN.lon }) : { lat: aN.lat, lon: aN.lon }
+          const bPos = paused ? (frozenPos.get(bN.id) ?? { lat: bN.lat, lon: bN.lon }) : { lat: bN.lat, lon: bN.lon }
+          list.push({ startLat:aPos.lat, startLng:aPos.lon, endLat:bPos.lat, endLng:bPos.lon, color: '#f97316' })
+        }
       }
     }
     return list
-  }, [currentRoute, nodes, rwrPath, showACO, showRWR])
+  }, [currentRoute, nodes, rwrPath, showACO, showRWR, paused, frozenPos])
 
   // computed metrics for ACO and RWR using the formulas in src/lib/metrics
   const acoComputedLatency = useMemo(() => {

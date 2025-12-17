@@ -7,6 +7,9 @@ import { getSpeed, setSpeed } from '../lib/api'
 
 export default function PacketPage() {
   const { nodes, fetchNodes, currentRoute, findRoute, packetSessions, startPacket, hoverNodeId, setHoverNode, clearSession, startNodeMotionPolling } = useStore()
+  const [paused, setPaused] = useState<boolean>(false)
+  const stopRef = useRef<(() => void) | null>(null)
+  const [frozenPos, setFrozenPos] = useState<Map<number, {lat:number; lon:number}>>(new Map())
   const [src, setSrc] = useState<number | ''>('')
   const [dst, setDst] = useState<number | ''>('')
   const [protocol, setProtocol] = useState<'TCP'|'UDP'>('TCP')
@@ -31,15 +34,17 @@ export default function PacketPage() {
     try { const res = await setSpeed(next); if (res.ok) setMult(res.multiplier) } catch {}
   }
   // Pause/Play motion per-page
-  const [paused, setPaused] = useState<boolean>(true)
-  const stopRef = useRef<(() => void) | null>(null)
   const togglePause = () => {
     if (!paused) {
       if (stopRef.current) stopRef.current()
+      const m = new Map<number, {lat:number; lon:number}>()
+      nodes.forEach(n => m.set(n.id, { lat: n.lat, lon: n.lon }))
+      setFrozenPos(m)
       setPaused(true)
     } else {
       const stop = startNodeMotionPolling?.(1000)
       stopRef.current = stop || null
+      setFrozenPos(new Map())
       setPaused(false)
     }
   }
@@ -90,12 +95,16 @@ export default function PacketPage() {
     if (!session?.path?.length) return [] as any[]
     const list: any[] = []
     for (let i=0;i<session.path.length-1;i++){
-      const a = nodes.find(n=>n.id===session.path[i])
-      const b = nodes.find(n=>n.id===session.path[i+1])
-      if (a&&b) list.push({ startLat:a.lat, startLng:a.lon, endLat:b.lat, endLng:b.lon })
+      const aN = nodes.find(n=>n.id===session.path[i])
+      const bN = nodes.find(n=>n.id===session.path[i+1])
+      if (aN&&bN) {
+        const aPos = paused ? (frozenPos.get(aN.id) ?? { lat: aN.lat, lon: aN.lon }) : { lat: aN.lat, lon: aN.lon }
+        const bPos = paused ? (frozenPos.get(bN.id) ?? { lat: bN.lat, lon: bN.lon }) : { lat: bN.lat, lon: bN.lon }
+        list.push({ startLat:aPos.lat, startLng:aPos.lon, endLat:bPos.lat, endLng:bPos.lon })
+      }
     }
     return list
-  }, [session, nodes])
+  }, [session, nodes, paused, frozenPos])
 
   // messages per node for the current session
   const messagesByNode = session?.messages ?? {}
